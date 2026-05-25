@@ -12,6 +12,8 @@
     </script>
     <!-- SortableJS for drag-and-drop -->
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+    <!-- Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 
     <style type="text/tailwindcss">
         body {
@@ -55,7 +57,7 @@
             @apply bg-white dark:bg-slate-800
                    rounded-xl border border-slate-200 dark:border-slate-700/60
                    shadow-sm p-3.5
-                   cursor-grab active:cursor-grabbing
+                   cursor-pointer active:cursor-grabbing
                    select-none
                    transition-all duration-200
                    overflow-visible;
@@ -186,15 +188,55 @@
             -webkit-background-clip: unset !important;
             background-clip: unset !important;
         }
+
+        /* ─── 모바일 드로어 ───────────────────────────────────── */
+        #sideDrawer.drawer-open { transform: translateX(0); }
+        body.drawer-open { overflow: hidden; }
+
+        /* ─── 모바일 칸반 탭 ──────────────────────────────────── */
+        .col-wrap.tab-hidden { display: none; }
+        .kanban-tab {
+            border-bottom: 2px solid transparent;
+            color: rgb(100 116 139);
+            transition: color 0.2s, border-color 0.2s;
+        }
+        .dark .kanban-tab { color: rgb(148 163 184); }
+        .kanban-tab.tab-active {
+            border-bottom-color: rgb(59 130 246);
+            color: rgb(15 23 42);
+        }
+        .dark .kanban-tab.tab-active { color: rgb(241 245 249); }
     </style>
 </head>
 
 <body class="min-h-screen bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors duration-300">
 
 <!-- ═══════════════════════════════════════════════════════════
+     LOGIN SCREEN
+════════════════════════════════════════════════════════════ -->
+<div id="loginScreen" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-100 dark:bg-slate-950">
+    <div class="card p-10 flex flex-col items-center gap-6 w-full max-w-sm mx-4">
+        <div class="text-4xl">📋</div>
+        <div class="text-center">
+            <h1 class="text-xl font-bold text-slate-800 dark:text-slate-100">TODO List</h1>
+            <p class="text-sm text-slate-400 dark:text-slate-500 mt-1">Sign in to continue</p>
+        </div>
+        <button onclick="signInWithGoogle()"
+            class="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-xl
+                   bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700
+                   text-slate-700 dark:text-slate-200 font-medium text-sm
+                   hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm">
+            <img src="https://www.google.com/favicon.ico" class="w-4 h-4">
+            Continue with Google
+        </button>
+        <p id="loginError" class="text-xs text-red-500 hidden">로그인에 실패했습니다. 다시 시도해주세요.</p>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
      2026 GOALS SECTION
 ════════════════════════════════════════════════════════════ -->
-<div class="max-w-7xl mx-auto px-5 pt-4 pb-2">
+<div class="hidden lg:block max-w-7xl mx-auto px-5 pt-4 pb-2">
     <div class="relative overflow-hidden card p-3.5" id="goalsSection">
         <div class="pointer-events-none absolute inset-0 bg-gradient-to-br from-blue-500/10 via-indigo-400/5 to-purple-500/8 dark:from-blue-500/15 dark:via-indigo-500/8 dark:to-purple-600/10"></div>
 
@@ -237,19 +279,30 @@
      TOP HEADER BAR
 ════════════════════════════════════════════════════════════ -->
 <div class="max-w-7xl mx-auto px-5 pb-4">
-    <div class="flex items-center justify-between gap-4">
-        <div class="flex items-center gap-3">
-            <h1 id="appTitle" class="text-xl font-bold bg-gradient-to-r from-blue-400 via-indigo-400 to-violet-400 bg-clip-text text-transparent title-editable flex items-center gap-2">
-                <span>Study Assistant</span>
-                <span class="edit-icon opacity-0 transition-opacity duration-200 text-slate-400 dark:text-slate-500 text-sm no-gradient hover:opacity-100">✎</span>
-            </h1>
-
-            <div id="currentActivityDisplay" class="text-sm font-semibold bg-gradient-to-r from-blue-400 via-indigo-400 to-violet-400 bg-clip-text text-transparent whitespace-nowrap">
-                <!-- "Now is the time to do..." will be inserted here -->
+    <div class="flex items-center justify-between gap-3">
+        <div class="flex items-center gap-3 min-w-0">
+            <button id="drawerToggleBtn"
+                    class="lg:hidden btn-ghost p-1.5 text-xl flex-shrink-0 w-8 h-8 flex items-center justify-center"
+                    aria-label="Open menu">☰</button>
+            <!-- 모바일: 진행률 바로 표시 -->
+            <div class="flex lg:hidden items-center gap-2 text-sm">
+                <span class="text-slate-400 dark:text-slate-500 whitespace-nowrap text-xs">
+                    <span id="completedCountMobile">0</span>/<span id="totalCountMobile">0</span> done
+                </span>
+                <div class="w-20 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                    <div id="progressFillMobile"
+                         class="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full transition-all duration-700"
+                         style="width:0%"></div>
+                </div>
+                <span class="text-xs text-slate-400 dark:text-slate-600" id="progressPctMobile">0%</span>
+            </div>
+            <!-- 데스크탑: "Now is the time to do..." -->
+            <div id="currentActivityDisplay" class="hidden lg:block text-sm font-semibold bg-gradient-to-r from-blue-400 via-indigo-400 to-violet-400 bg-clip-text text-transparent whitespace-nowrap">
             </div>
         </div>
         <div class="flex items-center gap-4">
-            <div class="flex items-center gap-2 text-sm">
+            <!-- 데스크탑: 진행률 -->
+            <div class="hidden lg:flex items-center gap-2 text-sm">
                 <span class="text-slate-400 dark:text-slate-500">
                     <span id="completedCount">0</span>/<span id="totalCount">0</span> done
                 </span>
@@ -277,6 +330,11 @@
                     class="btn-ghost p-1.5 text-lg w-5 h-8 flex items-center justify-center">
                 ☀️
             </button>
+            <button onclick="signOut()"
+                    class="btn-ghost p-1.5 text-sm w-8 h-8 flex items-center justify-center"
+                    title="Sign out">
+                🚪
+            </button>
         </div>
     </div>
 </div>
@@ -286,19 +344,23 @@
 ════════════════════════════════════════════════════════════ -->
 <div class="max-w-7xl mx-auto px-5 pb-10 flex gap-5">
 
-    <aside class="w-52 flex-shrink-0 space-y-3">
+    <div id="drawerBackdrop" class="fixed inset-0 z-30 bg-black/40 backdrop-blur-sm hidden lg:hidden"></div>
 
-        <div class="card p-3">
+    <aside id="sideDrawer"
+           class="w-64 flex-shrink-0 space-y-3
+                  fixed top-0 left-0 h-full z-40 overflow-y-auto
+                  bg-slate-100 dark:bg-slate-950 px-3 pt-4
+                  -translate-x-full transition-transform duration-300 ease-in-out
+                  lg:static lg:h-auto lg:z-auto lg:overflow-visible
+                  lg:bg-transparent lg:dark:bg-transparent lg:px-0 lg:pt-0
+                  lg:translate-x-0">
+
+        <!-- <div class="card p-3">
             <input type="text" id="searchInput"
                    placeholder="🔍  Search tasks…"
                    class="input-field text-sm">
-        </div>
+        </div> -->
 
-        <button id="openAddTaskModal"
-                class="btn-primary w-full px-4 py-3 text-sm flex items-center justify-center gap-2">
-            <span class="text-xl font-light leading-none">+</span>
-            <span>New Task</span>
-        </button>
 
         <div class="card p-4">
             <div class="flex items-center justify-between gap-2 mb-3">
@@ -358,28 +420,10 @@
                 </div>
             </div>
 
-            <!-- Data Export/Import -->
+            <!-- Data Management -->
             <div class="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700/50">
                 <p class="text-xs text-slate-400 dark:text-slate-500 font-semibold mb-2">Data Management</p>
                 <div class="space-y-2">
-                    <button id="exportDataBtn"
-                            class="w-full px-3 py-1.5 rounded-lg text-xs font-medium
-                                   bg-slate-100 dark:bg-slate-700/40 text-slate-600 dark:text-slate-300
-                                   hover:bg-slate-200 dark:hover:bg-slate-700/60 transition-all duration-200">
-                        ⬇️ Export Data
-                    </button>
-                    <div class="relative">
-                        <input type="file"
-                               id="importDataInput"
-                               accept=".json"
-                               style="display:none">
-                        <button id="importDataBtn"
-                                class="w-full px-3 py-1.5 rounded-lg text-xs font-medium
-                                       bg-slate-100 dark:bg-slate-700/40 text-slate-600 dark:text-slate-300
-                                       hover:bg-slate-200 dark:hover:bg-slate-700/60 transition-all duration-200">
-                            ⬆️ Import Data
-                        </button>
-                    </div>
                     <button id="openArchiveBtn"
                             class="w-full px-3 py-1.5 rounded-lg text-xs font-medium
                                    bg-slate-100 dark:bg-slate-700/40 text-slate-600 dark:text-slate-300
@@ -391,54 +435,63 @@
         </div>
     </aside>
 
-    <div class="flex-1 grid grid-cols-3 gap-4">
-
-        <div class="col-wrap">
-            <div class="flex items-center gap-2 mb-4">
-                <span class="w-2.5 h-2.5 rounded-full bg-blue-500 flex-shrink-0"></span>
-                <h2 class="font-bold text-sm text-slate-600 dark:text-slate-300 tracking-wide">TO DO</h2>
-                <span id="todoBadge"
-                      class="ml-auto min-w-[1.4rem] h-5 px-1.5 flex items-center justify-center
-                             rounded-full text-xs font-bold
-                             bg-blue-100 dark:bg-blue-900/50
-                             text-blue-600 dark:text-blue-400">0</span>
-            </div>
-            <div class="space-y-2.5 min-h-[14rem] relative"
-                 data-status="todo"
-                 id="todoList"></div>
+    <div class="flex-1 min-w-0">
+        <!-- 모바일 탭 바 -->
+        <div id="kanbanTabBar" class="flex lg:hidden border-b border-slate-200 dark:border-slate-700 mb-3">
+            <button class="kanban-tab flex-1 py-2 text-sm font-semibold" data-tab="todo">
+                <span class="text-blue-500">●</span> Todo
+            </button>
+            <button class="kanban-tab flex-1 py-2 text-sm font-semibold" data-tab="inprogress">
+                <span class="text-amber-500">●</span> In Progress
+            </button>
+            <button class="kanban-tab flex-1 py-2 text-sm font-semibold" data-tab="done">
+                <span class="text-emerald-500">●</span> Done
+            </button>
         </div>
 
-        <div class="col-wrap">
-            <div class="flex items-center gap-2 mb-4">
-                <span class="w-2.5 h-2.5 rounded-full bg-amber-500 flex-shrink-0"></span>
-                <h2 class="font-bold text-sm text-slate-600 dark:text-slate-300 tracking-wide">IN PROGRESS</h2>
-                <span id="inprogressBadge"
-                      class="ml-auto min-w-[1.4rem] h-5 px-1.5 flex items-center justify-center
-                             rounded-full text-xs font-bold
-                             bg-amber-100 dark:bg-amber-900/50
-                             text-amber-600 dark:text-amber-400">0</span>
-            </div>
-            <div class="space-y-2.5 min-h-[14rem] relative"
-                 data-status="inprogress"
-                 id="inprogressList"></div>
-        </div>
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4" id="kanbanBoard" data-active-tab="todo">
 
-        <div class="col-wrap">
-            <div class="flex items-center gap-2 mb-4">
-                <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 flex-shrink-0"></span>
-                <h2 class="font-bold text-sm text-slate-600 dark:text-slate-300 tracking-wide">DONE</h2>
-                <span id="doneBadge"
-                      class="ml-auto min-w-[1.4rem] h-5 px-1.5 flex items-center justify-center
-                             rounded-full text-xs font-bold
-                             bg-emerald-100 dark:bg-emerald-900/50
-                             text-emerald-600 dark:text-emerald-400">0</span>
+            <div class="col-wrap" data-column="todo">
+                <div class="flex items-center gap-2 mb-4">
+                    <span class="w-2.5 h-2.5 rounded-full bg-blue-500 flex-shrink-0"></span>
+                    <h2 class="font-bold text-sm text-slate-600 dark:text-slate-300 tracking-wide">TO DO</h2>
+                    <span id="todoBadge"
+                          class="ml-auto min-w-[1.4rem] h-5 px-1.5 flex items-center justify-center
+                                 rounded-full text-xs font-bold
+                                 bg-blue-100 dark:bg-blue-900/50
+                                 text-blue-600 dark:text-blue-400">0</span>
+                </div>
+                <div class="space-y-2.5 min-h-[14rem] relative" data-status="todo" id="todoList"></div>
             </div>
-            <div class="space-y-2.5 min-h-[14rem] relative"
-                 data-status="done"
-                 id="doneList"></div>
-        </div>
 
-    </div>
+            <div class="col-wrap" data-column="inprogress">
+                <div class="flex items-center gap-2 mb-4">
+                    <span class="w-2.5 h-2.5 rounded-full bg-amber-500 flex-shrink-0"></span>
+                    <h2 class="font-bold text-sm text-slate-600 dark:text-slate-300 tracking-wide">IN PROGRESS</h2>
+                    <span id="inprogressBadge"
+                          class="ml-auto min-w-[1.4rem] h-5 px-1.5 flex items-center justify-center
+                                 rounded-full text-xs font-bold
+                                 bg-amber-100 dark:bg-amber-900/50
+                                 text-amber-600 dark:text-amber-400">0</span>
+                </div>
+                <div class="space-y-2.5 min-h-[14rem] relative" data-status="inprogress" id="inprogressList"></div>
+            </div>
+
+            <div class="col-wrap" data-column="done">
+                <div class="flex items-center gap-2 mb-4">
+                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 flex-shrink-0"></span>
+                    <h2 class="font-bold text-sm text-slate-600 dark:text-slate-300 tracking-wide">DONE</h2>
+                    <span id="doneBadge"
+                          class="ml-auto min-w-[1.4rem] h-5 px-1.5 flex items-center justify-center
+                                 rounded-full text-xs font-bold
+                                 bg-emerald-100 dark:bg-emerald-900/50
+                                 text-emerald-600 dark:text-emerald-400">0</span>
+                </div>
+                <div class="space-y-2.5 min-h-[14rem] relative" data-status="done" id="doneList"></div>
+            </div>
+
+        </div><!-- /kanbanBoard -->
+    </div><!-- /flex-1 -->
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════
@@ -851,1723 +904,18 @@
     </div>
 </div>
 
+<!-- Floating Action Button -->
+<button id="openAddTaskModal"
+        class="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full
+               btn-primary flex items-center justify-center
+               shadow-lg text-3xl font-light leading-none">
+    +
+</button>
+
 <!-- ═══════════════════════════════════════════════════════════
      JAVASCRIPT
 ════════════════════════════════════════════════════════════ -->
-<script>
-'use strict';
-
-// Goal color variants
-const GOAL_COLORS = [
-    'goal-blue',
-    'goal-mint',
-    'goal-purple'
-];
-
-// ─── STATE ───────────────────────────────────────────────────────────────────
-const STATE = {
-    tasks:      [],
-    categories: [],
-    goals:      [],
-    schedule:   [],
-    appTitle:   "[Your Name]'s TODO-LIST",
-    darkMode:   false,
-    filter:     'all',
-    search:     '',
-    editingId:  null,
-    sortables:  [],
-    goalSortable: null
-};
-
-// ─── LOCAL STORAGE ───────────────────────────────────────────────────────────
-const LS_KEYS = {
-    tasks:      'sa_tasks',
-    categories: 'sa_categories',
-    goals:      'sa_goals',
-    schedule:   'sa_schedule',
-    appTitle:   'sa_appTitle',
-    darkMode:   'sa_darkMode'
-};
-
-function lsLoad() {
-    try {
-        const t = localStorage.getItem(LS_KEYS.tasks);
-        const c = localStorage.getItem(LS_KEYS.categories);
-        const g = localStorage.getItem(LS_KEYS.goals);
-        const s = localStorage.getItem(LS_KEYS.schedule);
-        const a = localStorage.getItem(LS_KEYS.appTitle);
-        const d = localStorage.getItem(LS_KEYS.darkMode);
-
-        STATE.tasks      = t ? JSON.parse(t) : [];
-
-        // Migration: schedule format change from Array(24) to event objects
-        const raw = s ? JSON.parse(s) : [];
-        STATE.schedule = (Array.isArray(raw) && raw.length > 0 && typeof raw[0] === 'string')
-            ? []
-            : raw;
-
-        // Migration: convert string array to object array with order
-        let categories = c ? JSON.parse(c) : ['Math', 'AI', 'Languages'];
-        if (Array.isArray(categories) && categories.length > 0 && typeof categories[0] === 'string') {
-            categories = categories.map((name, idx) => ({ name, order: idx }));
-        }
-        STATE.categories = categories;
-        STATE.goals      = g ? JSON.parse(g) : [
-            {
-                id: 'goal_default_read10books',
-                text: 'Read 10 books',
-                order: 0,
-                color: 'goal-blue'
-            }
-        ];
-        STATE.appTitle   = a || "[Your Name]'s TODO-LIST";
-
-        // Check system preference on first visit, use saved preference on subsequent visits
-        if (d !== null) {
-            STATE.darkMode = d !== 'false';
-        } else {
-            // Detect system color scheme preference
-            STATE.darkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        }
-    } catch (err) {
-        console.warn('Failed to load from localStorage:', err);
-        STATE.tasks      = [];
-        STATE.categories = [
-            { name: 'Math', order: 0 },
-            { name: 'AI', order: 1 },
-            { name: 'Languages', order: 2 }
-        ];
-        STATE.goals      = [
-            {
-                id: 'goal_default_read10books',
-                text: 'Read 10 books',
-                order: 0,
-                color: 'goal-blue'
-            }
-        ];
-        STATE.appTitle   = "[Your Name]'s TODO-LIST";
-        STATE.darkMode   = false;
-    }
-}
-
-function lsSave() {
-    try {
-        localStorage.setItem(LS_KEYS.tasks,      JSON.stringify(STATE.tasks));
-        localStorage.setItem(LS_KEYS.categories, JSON.stringify(STATE.categories));
-        localStorage.setItem(LS_KEYS.goals,      JSON.stringify(STATE.goals));
-        localStorage.setItem(LS_KEYS.schedule,   JSON.stringify(STATE.schedule));
-        localStorage.setItem(LS_KEYS.appTitle,   STATE.appTitle);
-        localStorage.setItem(LS_KEYS.darkMode,   String(STATE.darkMode));
-    } catch (err) {
-        console.warn('Failed to save to localStorage:', err);
-    }
-}
-
-// ─── TASK CRUD ────────────────────────────────────────────────────────────────
-function createTaskId() {
-    return 'task_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9);
-}
-
-function taskCreate(data) {
-    // Calculate order within the same status
-    const tasksWithStatus = STATE.tasks.filter(t => t.status === (data.status || 'todo'));
-    const order = tasksWithStatus.length;
-
-    const task = {
-        id:          createTaskId(),
-        title:       data.title.trim(),
-        description: (data.description || '').trim(),
-        category:    data.category  || '',
-        priority:    data.priority  || 'medium',
-        status:      data.status    || 'todo',
-        dueDate:     data.dueDate   || '',
-        completed:   false,
-        completedDate: '',
-        order:       order,
-        createdAt:   new Date().toISOString()
-    };
-    STATE.tasks.push(task);
-    lsSave();
-}
-
-function taskUpdate(id, data) {
-    const idx = STATE.tasks.findIndex(t => t.id === id);
-    if (idx === -1) return;
-    Object.assign(STATE.tasks[idx], data);
-    lsSave();
-}
-
-function taskDelete(id) {
-    const deletedTask = STATE.tasks.find(t => t.id === id);
-    STATE.tasks = STATE.tasks.filter(t => t.id !== id);
-
-    // Reorder remaining tasks in the same status
-    if (deletedTask) {
-        STATE.tasks
-            .filter(t => t.status === deletedTask.status)
-            .sort((a, b) => (a.order || 0) - (b.order || 0))
-            .forEach((task, idx) => {
-                task.order = idx;
-            });
-    }
-
-    lsSave();
-}
-
-function taskToggleComplete(id) {
-    const task = STATE.tasks.find(t => t.id === id);
-    if (!task) return;
-    task.completed = !task.completed;
-
-    if (task.completed) {
-        // Checking: move to Done column
-        task.status = 'done';
-        task.completedDate = new Date().toISOString().split('T')[0];
-    } else {
-        // Unchecking: if in Done, move to In Progress
-        if (task.status === 'done') {
-            task.status = 'inprogress';
-        }
-        task.completedDate = '';
-    }
-    lsSave();
-}
-
-function taskSetCompleted(id, completed) {
-    const task = STATE.tasks.find(t => t.id === id);
-    if (!task) return;
-    task.completed = completed;
-    lsSave();
-}
-
-// ─── GOAL CRUD ────────────────────────────────────────────────────────────────
-function createGoalId() {
-    return 'goal_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9);
-}
-
-function getRandomColor() {
-    return GOAL_COLORS[Math.floor(Math.random() * GOAL_COLORS.length)];
-}
-
-function getRandomColorExcluding(excludeColors) {
-    const available = GOAL_COLORS.filter(c => !excludeColors.includes(c));
-    if (available.length === 0) return getRandomColor();
-    return available[Math.floor(Math.random() * available.length)];
-}
-
-function goalCreate(text) {
-    const usedColors = STATE.goals.map(g => g.color);
-    const goal = {
-        id: createGoalId(),
-        text: text.trim(),
-        order: STATE.goals.length,
-        color: getRandomColorExcluding(usedColors)
-    };
-    STATE.goals.push(goal);
-    lsSave();
-}
-
-function goalDelete(id) {
-    STATE.goals = STATE.goals.filter(g => g.id !== id);
-    STATE.goals.forEach((g, idx) => { g.order = idx; });
-    lsSave();
-}
-
-function goalsReorder(newOrder) {
-    const goalMap = {};
-    STATE.goals.forEach(g => { goalMap[g.id] = g; });
-    STATE.goals = newOrder.map((id, idx) => {
-        const goal = goalMap[id];
-        if (goal) goal.order = idx;
-        return goal;
-    }).filter(Boolean);
-    lsSave();
-}
-
-// ─── CATEGORY/SUBJECT CRUD ────────────────────────────────────────────────────
-function categoryCreate(name) {
-    const trimmed = name.trim();
-    if (!trimmed || STATE.categories.some(c => c.name === trimmed)) return false;
-    const maxOrder = STATE.categories.length > 0 ? Math.max(...STATE.categories.map(c => c.order ?? 0)) : -1;
-    STATE.categories.push({ name: trimmed, order: maxOrder + 1 });
-    lsSave();
-    return true;
-}
-
-function categoryRename(oldName, newName) {
-    const trimmed = newName.trim();
-    const oldIdx = STATE.categories.findIndex(c => c.name === oldName);
-    if (oldIdx === -1) return false;
-    if (trimmed === oldName) return true;
-    if (STATE.categories.some(c => c.name === trimmed)) return false;
-
-    STATE.categories[oldIdx].name = trimmed;
-    STATE.tasks.forEach(task => {
-        if (task.category === oldName) {
-            task.category = trimmed;
-        }
-    });
-    lsSave();
-    return true;
-}
-
-function categoryDelete(name) {
-    const idx = STATE.categories.findIndex(c => c.name === name);
-    if (idx === -1) return;
-    STATE.categories.splice(idx, 1);
-    STATE.tasks.forEach(task => {
-        if (task.category === name) {
-            task.category = '';
-        }
-    });
-    lsSave();
-}
-
-// ─── FILTERING ────────────────────────────────────────────────────────────────
-function getFilteredByStatus(status) {
-    const q = STATE.search.toLowerCase().trim();
-    return STATE.tasks.filter(task => {
-        if (task.status !== status) return false;
-        if (STATE.filter !== 'all' && task.category !== STATE.filter) return false;
-        if (q) {
-            const inTitle = task.title.toLowerCase().includes(q);
-            const inDesc  = task.description.toLowerCase().includes(q);
-            if (!inTitle && !inDesc) return false;
-        }
-        return true;
-    }).sort((a, b) => (a.order || 0) - (b.order || 0));  // Sort by order
-}
-
-// ─── HELPERS ─────────────────────────────────────────────────────────────────
-function esc(str) {
-    const d = document.createElement('div');
-    d.textContent = String(str || '');
-    return d.innerHTML;
-}
-
-function formatDate(dateStr) {
-    if (!dateStr) return '';
-    const [y, m, d] = dateStr.split('-').map(Number);
-    const date = new Date(y, m - 1, d);
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-}
-
-function isOverdue(dateStr) {
-    if (!dateStr) return false;
-    const [y, m, d] = dateStr.split('-').map(Number);
-    const due  = new Date(y, m - 1, d);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return due < today;
-}
-
-function getDayCount(dateStr) {
-    if (!dateStr) return '';
-    const [y, m, d] = dateStr.split('-').map(Number);
-    const due  = new Date(y, m - 1, d);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const diffMs = due - today;
-    const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-
-    if (diffDays === 0) return '(D-day)';
-    if (diffDays > 0) return `(D-${diffDays})`;
-    return `(D+${Math.abs(diffDays)})`;
-}
-
-// ─── RENDER ───────────────────────────────────────────────────────────────────
-function buildTaskCard(task) {
-    // Calculate days remaining for color coding
-    let dateCls = 'text-slate-400 dark:text-slate-500';
-    if (task.dueDate) {
-        const [y, m, d] = task.dueDate.split('-').map(Number);
-        const due = new Date(y, m - 1, d);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const diffMs = due - today;
-        const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-
-        if (diffDays <= 3) {
-            dateCls = 'text-red-500 font-medium';
-        } else if (diffDays <= 7) {
-            dateCls = 'text-orange-500 font-medium';
-        }
-    }
-    const overdue   = isOverdue(task.dueDate);
-    const isDone    = task.status === 'done';
-    const titleCls  = isDone
-        ? 'line-through text-slate-400 dark:text-slate-500'
-        : 'text-slate-800 dark:text-slate-100';
-    const checkCls  = isDone
-        ? 'bg-emerald-500 border-emerald-500 text-white'
-        : 'border-slate-300 dark:border-slate-600 hover:border-emerald-400 dark:hover:border-emerald-500 text-transparent';
-    const priCls    =
-        task.priority === 'high'   ? 'bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400' :
-        task.priority === 'medium' ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400' :
-                                     'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400';
-
-    return `
-<div class="task-card pri-${esc(task.priority)} ${isDone ? 'opacity-50' : ''} fade-up group"
-     data-task-id="${esc(task.id)}">
-
-    <div class="flex gap-2.5 items-start">
-        <button class="mt-0.5 flex-shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center
-                       text-xs font-bold transition-all duration-200 ${checkCls}"
-                onclick="handleToggleComplete('${esc(task.id)}')"
-                title="Toggle complete">✓</button>
-
-        <div class="flex-1 min-w-0">
-            <div class="text-sm font-medium leading-snug ${titleCls}">${esc(task.title)}</div>
-            ${task.description
-                ? `<div class="text-xs text-slate-400 dark:text-slate-500 mt-1 leading-relaxed line-clamp-2">${esc(task.description)}</div>`
-                : ''}
-            <div class="flex flex-wrap gap-1.5 mt-2 items-center">
-                ${task.category
-                    ? `<span class="px-2 py-0.5 rounded-full text-xs font-medium
-                                   bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400">
-                           ${esc(task.category)}
-                       </span>`
-                    : ''}
-                <span class="px-2 py-0.5 rounded-full text-xs font-semibold ${priCls}">${esc(task.priority)}</span>
-                ${(task.status === 'done' && task.completedDate)
-                    ? `<span class="text-xs text-emerald-600 dark:text-emerald-400 font-medium">✅ ${formatDate(task.completedDate)}</span>`
-                    : task.dueDate
-                    ? `<span class="text-xs ${dateCls}">📅 ${formatDate(task.dueDate)} ${getDayCount(task.dueDate)}${overdue ? ' ⚠' : ''}</span>`
-                    : ''}
-            </div>
-        </div>
-
-        <div class="relative opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex-shrink-0">
-            <button class="p-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors"
-                    onclick="toggleTaskCardMenu('${esc(task.id)}', event)">⋮</button>
-            <div id="taskCardMenu_${esc(task.id)}" class="taskCardMenu absolute right-0 top-full mt-1 bg-white dark:bg-slate-700 rounded-lg shadow-lg border border-slate-200 dark:border-slate-600 z-50 hidden w-28">
-                ${task.status === 'done' ? `<button onclick="handleArchiveTask('${esc(task.id)}')" class="w-full flex items-center justify-between px-3 py-1.5 text-xs text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-600/40 transition-colors"><span>Archive</span> <span>📥</span></button>` : ''}
-                <button onclick="handleEditTask('${esc(task.id)}')" class="w-full flex items-center justify-between px-3 py-1.5 text-xs text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-600/40 transition-colors"><span>Edit</span> <span>✎</span></button>
-                <button onclick="handleDeleteTask('${esc(task.id)}')" class="w-full flex items-center justify-between px-3 py-1.5 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"><span>Delete</span> <span>🗑️</span></button>
-            </div>
-        </div>
-    </div>
-</div>`;
-}
-
-function buildEmptyState(label) {
-    return `
-<div class="flex flex-col items-center justify-center py-12 text-center select-none pointer-events-none">
-    <div class="text-3xl mb-2 opacity-40">📭</div>
-    <div class="text-sm text-slate-400 dark:text-slate-600">No ${label} tasks</div>
-    <div class="text-xs text-slate-300 dark:text-slate-700 mt-1">Drag tasks here or add a new one</div>
-</div>`;
-}
-
-function renderBoard() {
-    const configs = [
-        { listId: 'todoList',       status: 'todo',       label: 'to do' },
-        { listId: 'inprogressList', status: 'inprogress', label: 'in progress' },
-        { listId: 'doneList',       status: 'done',       label: 'done' }
-    ];
-
-    configs.forEach(({ listId, status, label }) => {
-        const el    = document.getElementById(listId);
-        const tasks = getFilteredByStatus(status);
-        el.innerHTML = tasks.length
-            ? tasks.map(buildTaskCard).join('')
-            : buildEmptyState(label);
-    });
-
-    initDragAndDrop();
-}
-
-function renderStats() {
-    const all   = STATE.tasks.filter(t => t.status !== 'archive');  // ✅ archive 제외
-    const total = all.length;
-    const done  = all.filter(t => t.status === 'done').length;  // ✅ status === 'done'만 카운트
-    const pct   = total === 0 ? 0 : Math.round((done / total) * 100);
-
-    document.getElementById('completedCount').textContent = done;
-    document.getElementById('totalCount').textContent     = total;
-    document.getElementById('progressFill').style.width   = pct + '%';
-    document.getElementById('progressPct').textContent    = pct + '%';
-
-    const tCount = all.filter(t => t.status === 'todo').length;
-    const iCount = all.filter(t => t.status === 'inprogress').length;
-    const dCount = all.filter(t => t.status === 'done').length;
-
-    document.getElementById('todoCount').textContent       = tCount;
-    document.getElementById('inprogressCount').textContent = iCount;
-    document.getElementById('doneCount').textContent       = dCount;
-    document.getElementById('todoBadge').textContent       = tCount;
-    document.getElementById('inprogressBadge').textContent = iCount;
-    document.getElementById('doneBadge').textContent       = dCount;
-}
-
-function renderCategoryFilter() {
-    const el = document.getElementById('categoryList');
-    const sorted = [...STATE.categories].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-    const items = [
-        { value: 'all', label: '✦ All Tasks' },
-        ...sorted.map(c => ({ value: c.name, label: c.name, catObj: c }))
-    ];
-
-    el.innerHTML = items.map(({ value, label, catObj }, idx) => {
-        const active = STATE.filter === value;
-        const btnClass = active
-            ? 'bg-blue-500 text-white shadow-sm shadow-blue-500/20'
-            : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700/60';
-
-        return `<div class="flex items-center gap-1 category-item" ${catObj ? `data-category="${esc(label)}"` : ''}>
-            <button
-                class="flex-1 text-left px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 category-btn ${btnClass}"
-                data-filter="${esc(value)}"
-            >${esc(label)}</button>
-            ${value !== 'all' ? `<button class="px-2 py-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 text-sm"
-                    onclick="showCategoryMenu('${esc(value)}')"
-                    title="Manage">⋮</button>` : ''}
-        </div>`;
-    }).join('');
-
-    el.querySelectorAll('.category-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            STATE.filter = btn.dataset.filter;
-            renderCategoryFilter();
-            renderBoard();
-        });
-    });
-
-    // Initialize drag and drop for categories (exclude "All Tasks")
-    if (STATE.sortables.categoryList) STATE.sortables.categoryList.destroy();
-    STATE.sortables.categoryList = new Sortable(el, {
-        draggable: '.category-item[data-category]',
-        animation: 150,
-        onEnd: function() {
-            const items = el.querySelectorAll('.category-item[data-category]');
-            Array.from(items).forEach((el, idx) => {
-                const name = el.dataset.category;
-                const cat = STATE.categories.find(c => c.name === name);
-                if (cat) cat.order = idx;
-            });
-            lsSave();
-        }
-    });
-}
-
-function renderCategorySelect() {
-    const el = document.getElementById('taskCategory');
-    const sorted = [...STATE.categories].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-    el.innerHTML = `<option value="">None</option>` +
-        sorted.map(c => `<option value="${esc(c.name)}">${esc(c.name)}</option>`).join('');
-}
-
-function renderGoals() {
-    const el = document.getElementById('goalsList');
-    if (STATE.goals.length === 0) {
-        el.innerHTML = '';
-        return;
-    }
-
-    el.innerHTML = STATE.goals
-        .sort((a, b) => a.order - b.order)
-        .map(goal => `
-<div class="goal-pill ${esc(goal.color)} fade-up group" data-goal-id="${esc(goal.id)}">
-    <span>${esc(goal.text)}</span>
-    <button type="button"
-            class="ml-1 opacity-0 group-hover:opacity-100 transition-opacity leading-none text-lg"
-            onclick="handleDeleteGoal('${esc(goal.id)}')"
-            title="Delete">×</button>
-</div>`)
-        .join('');
-
-    initGoalDragAndDrop();
-}
-
-function renderAppTitle() {
-    const textSpan = document.getElementById('appTitle').querySelector('span:first-child');
-    if (textSpan) textSpan.textContent = STATE.appTitle;
-}
-
-function renderAll() {
-    renderBoard();
-    renderStats();
-    renderCategoryFilter();
-    renderCategorySelect();
-    renderGoals();
-    renderAppTitle();
-}
-
-// ─── DRAG AND DROP ────────────────────────────────────────────────────────────
-function initDragAndDrop() {
-    STATE.sortables.forEach(s => { try { s.destroy(); } catch(e) {} });
-    STATE.sortables = [];
-
-    const listIds = ['todoList', 'inprogressList', 'doneList'];
-
-    listIds.forEach(id => {
-        const el = document.getElementById(id);
-        if (!el) return;
-
-        const instance = Sortable.create(el, {
-            group:      'kanban',
-            animation:  150,
-            ghostClass: 'sortable-ghost',
-            chosenClass:'sortable-chosen',
-            filter:     '.pointer-events-none',
-            forceFallback: false,
-            delay: 100,
-            delayOnTouchOnly: true,
-            onEnd(evt) {
-                const taskId   = evt.item.dataset.taskId;
-                const newStatus = evt.to.dataset.status;
-
-                if (!taskId || !newStatus) return;
-
-                // Update task status
-                const task = STATE.tasks.find(t => t.id === taskId);
-                if (!task) return;
-
-                task.status = newStatus;
-
-                // Auto-update completed state based on status and set/clear completion date
-                if (newStatus === 'done') {
-                    task.completed = true;
-                    task.completedDate = new Date().toISOString().split('T')[0];
-                } else {
-                    task.completed = false;
-                    task.completedDate = '';
-                }
-
-                // Update order based on new DOM position
-                const container = evt.to;
-                const taskIds = Array.from(container.querySelectorAll('[data-task-id]'))
-                    .map(el => el.dataset.taskId);
-
-                taskIds.forEach((id, idx) => {
-                    const t = STATE.tasks.find(task => task.id === id);
-                    if (t) t.order = idx;
-                });
-
-                lsSave();
-
-                // Full re-render to update all UI
-                renderBoard();
-                renderStats();
-                renderCategoryFilter();
-            }
-        });
-
-        STATE.sortables.push(instance);
-    });
-}
-
-function initGoalDragAndDrop() {
-    const el = document.getElementById('goalsList');
-    if (!el) return;
-
-    if (STATE.goalSortable) {
-        try { STATE.goalSortable.destroy(); } catch(e) {}
-    }
-
-    STATE.goalSortable = Sortable.create(el, {
-        animation:  150,
-        ghostClass: 'sortable-ghost',
-        chosenClass: 'sortable-chosen',
-        forceFallback: false,
-        onEnd() {
-            const newOrder = Array.from(el.querySelectorAll('[data-goal-id]'))
-                .map(el => el.dataset.goalId);
-            goalsReorder(newOrder);
-        }
-    });
-}
-
-// ─── MODAL ───────────────────────────────────────────────────────────────────
-function modalShow(modalId) {
-    document.getElementById(modalId).style.display = 'flex';
-    document.body.style.overflow = 'hidden';
-}
-
-function modalHide(modalId) {
-    document.getElementById(modalId).style.display = 'none';
-    document.body.style.overflow = '';
-    if (modalId === 'taskModal') STATE.editingId = null;
-}
-
-function updateTaskDateFields() {
-    const status = document.getElementById('taskStatus').value;
-    const dueDateField = document.getElementById('dueDateField');
-    const completedDateField = document.getElementById('completedDateField');
-
-    if (status === 'done' || status === 'archive') {
-        dueDateField.style.display = 'none';
-        completedDateField.style.display = 'grid';
-    } else {
-        dueDateField.style.display = 'block';
-        completedDateField.style.display = 'none';
-    }
-}
-
-function closeTaskModalWithConfirm() {
-    const titleInput = document.getElementById('taskTitle');
-    const titleValue = titleInput ? titleInput.value.trim() : '';
-
-    // If title is empty or it's an existing task being edited, close without asking
-    if (!titleValue || STATE.editingId) {
-        modalHide('taskModal');
-        return;
-    }
-
-    // Title has content - ask for confirmation
-    if (confirm('Close without saving? Any unsaved task will be lost.')) {
-        modalHide('taskModal');
-    }
-}
-
-function openAddModal() {
-    STATE.editingId = null;
-    document.getElementById('modalTitle').textContent = 'New Task';
-    document.getElementById('taskForm').reset();
-    document.getElementById('titleError').classList.add('hidden');
-    document.getElementById('deleteTaskBtn').classList.add('hidden');
-    document.getElementById('taskCompletedDate').value = '';
-    renderCategorySelect();
-    updateTaskDateFields();
-    modalShow('taskModal');
-    setTimeout(() => document.getElementById('taskTitle').focus(), 50);
-}
-
-function handleEditTask(id) {
-    const task = STATE.tasks.find(t => t.id === id);
-    if (!task) return;
-
-    STATE.editingId = id;
-    document.getElementById('modalTitle').textContent = 'Edit Task';
-    renderCategorySelect();
-
-    document.getElementById('taskTitle').value       = task.title;
-    document.getElementById('taskDescription').value = task.description;
-    document.getElementById('taskCategory').value    = task.category;
-    document.getElementById('taskPriority').value    = task.priority;
-    document.getElementById('taskStatus').value      = task.status;
-    document.getElementById('taskDueDate').value     = task.dueDate;
-    document.getElementById('taskCompletedDate').value = task.completedDate || '';
-    document.getElementById('titleError').classList.add('hidden');
-    document.getElementById('deleteTaskBtn').classList.remove('hidden');
-
-    updateTaskDateFields();
-    modalShow('taskModal');
-    setTimeout(() => document.getElementById('taskTitle').focus(), 50);
-}
-
-function handleDeleteTask(id) {
-    const task = STATE.tasks.find(t => t.id === id);
-    if (!task) return;
-
-    const confirmed = confirm(
-        `⚠️ Delete "${task.title}"?\n\nThis action is irreversible and cannot be undone.`
-    );
-
-    if (confirmed) {
-        taskDelete(id);
-        renderAll();
-
-        // ✅ calendar modal이 열려있으면 업데이트
-        const calendarModal = document.getElementById('calendarModal');
-        if (calendarModal && calendarModal.style.display !== 'none') {
-            window.refreshCalendarView?.();
-        }
-    }
-}
-
-function handleToggleComplete(id) {
-    taskToggleComplete(id);
-    renderAll();
-}
-
-function handleArchiveTask(id) {
-    const task = STATE.tasks.find(t => t.id === id);
-    if (!task) return;
-    task.status = 'archive';
-    lsSave();
-    renderAll();
-}
-
-function renderArchiveList() {
-    const searchText = document.getElementById('archiveSearchInput').value.toLowerCase();
-    const filterDateFrom = document.getElementById('archiveFilterDateFrom').value;
-    const filterDateTo = document.getElementById('archiveFilterDateTo').value;
-
-    let archived = STATE.tasks.filter(t => t.status === 'archive');
-
-    // Sort by completed date (newest first)
-    archived.sort((a, b) => {
-        const dateA = new Date(a.completedDate || '0000-00-00');
-        const dateB = new Date(b.completedDate || '0000-00-00');
-        return dateB - dateA;
-    });
-
-    // Filter by search text (title & description)
-    if (searchText) {
-        archived = archived.filter(t =>
-            t.title.toLowerCase().includes(searchText) ||
-            t.description.toLowerCase().includes(searchText)
-        );
-    }
-
-    // Filter by date range
-    if (filterDateFrom || filterDateTo) {
-        archived = archived.filter(t => {
-            const taskDate = t.completedDate;
-            if (filterDateFrom && taskDate < filterDateFrom) return false;
-            if (filterDateTo && taskDate > filterDateTo) return false;
-            return true;
-        });
-    }
-
-    const list = document.getElementById('archiveList');
-    if (archived.length === 0) {
-        list.innerHTML = '<p class="text-xs text-slate-400 dark:text-slate-500 text-center py-8">No archived tasks</p>';
-        return;
-    }
-
-    list.innerHTML = archived.map(task => `
-        <div class="pl-3 pr-3 pt-1 pb-1 rounded-lg bg-slate-100 dark:bg-slate-700/40 border border-slate-200 dark:border-slate-600">
-            <div class="flex items-center gap-3 justify-between">
-                <div class="flex items-center gap-2 min-w-0 flex-wrap">
-                    <div class="text-sm font-medium text-slate-800 dark:text-slate-100 whitespace-nowrap">${esc(task.title)}</div>
-                    ${task.category ? `<span class="px-1.5 py-0.5 rounded text-xs bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 whitespace-nowrap">${esc(task.category)}</span>` : ''}
-                    <span class="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">📅 ${task.completedDate}</span>
-                </div>
-                <div class="flex items-center gap-1 flex-shrink-0">
-                    <button class="p-1 text-blue-600 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded transition-colors text-lg"
-                            onclick="handleRestoreArchive('${esc(task.id)}')"
-                            title="Restore to Done">⏏️</button>
-                    <button class="p-1 text-red-600 hover:bg-red-100 dark:hover:bg-red-900/40 rounded transition-colors"
-                            onclick="handleDeleteArchive('${esc(task.id)}')"
-                            title="Delete">❎</button>
-                </div>
-            </div>
-            ${task.description ? `<div class="text-xs text-slate-500 dark:text-slate-400 mt-0 mb-1 line-clamp-2">${esc(task.description)}</div>` : ''}
-        </div>
-    `).join('');
-}
-
-function handleRestoreArchive(id) {
-    const task = STATE.tasks.find(t => t.id === id);
-    if (!task) return;
-    task.status = 'done';
-    task.completed = true;
-    lsSave();
-    renderArchiveList();
-    renderAll();
-}
-
-function handleDeleteArchive(id) {
-    const task = STATE.tasks.find(t => t.id === id);
-    if (!task) return;
-    taskDelete(id);
-    renderArchiveList();
-    renderAll();
-}
-
-function showTaskDetail(taskId, editMode = false) {
-    const task = STATE.tasks.find(t => t.id === taskId);
-    if (!task) return;
-
-    const statusLabels = {
-        'todo': { emoji: '📋', text: 'To Do' },
-        'inprogress': { emoji: '⏳', text: 'In Progress' },
-        'done': { emoji: '✅', text: 'Done' },
-        'archive': { emoji: '📥', text: 'Archive' }
-    };
-    const status = statusLabels[task.status] || statusLabels['todo'];
-
-    const panel = document.getElementById('taskDetailPanel');
-    const content = document.getElementById('taskDetailContent');
-
-    // ✅ Menu 버튼 생성 및 이벤트 핸들러
-    const menuContainer = document.getElementById('taskMenuContainer');
-    let menuBtn = menuContainer.querySelector('.task-menu-btn');
-
-    if (!menuBtn) {
-        menuBtn = document.createElement('button');
-        menuBtn.className = 'task-menu-btn btn-ghost p-1 text-lg';
-        menuBtn.innerHTML = '⋮';
-        menuContainer.insertBefore(menuBtn, menuContainer.firstChild);
-    }
-
-    // Menu 버튼 클릭 핸들러
-    menuBtn.onclick = (e) => {
-        e.stopPropagation();
-        const menu = document.getElementById('taskMenu');
-        menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
-    };
-
-    // ✅ Menu 버튼들 업데이트
-    const editMenuBtn = document.querySelector('#taskMenu .edit-menu-btn');
-    const deleteMenuBtn = document.querySelector('#taskMenu .delete-menu-btn');
-
-    if (editMenuBtn) {
-        editMenuBtn.onclick = () => {
-            document.getElementById('taskMenu').style.display = 'none';
-            showTaskDetail(taskId, true);  // ✅ edit mode로 열기
-        };
-    }
-
-    if (deleteMenuBtn) {
-        deleteMenuBtn.onclick = () => {
-            document.getElementById('taskMenu').style.display = 'none';
-            deleteTaskConfirm(taskId);
-        };
-    }
-
-    // ✅ Edit mode 렌더링
-    if (editMode) {
-        const categories = STATE.categories.map(c => c.name);
-
-        // ✅ 현재 form의 status 값을 확인 (status 변경 시 UI 업데이트)
-        const statusSelect = document.getElementById('statusEdit');
-        const currentStatus = statusSelect ? statusSelect.value : task.status;
-
-        const buttonDiv = document.getElementById('taskDetailButtons');
-        buttonDiv.className = 'border-t border-slate-200 dark:border-slate-700 pt-4 flex gap-2 flex-shrink-0';
-        buttonDiv.innerHTML = `
-            <button onclick="saveTaskEdits('${taskId}')" class="flex-1 bg-blue-500 hover:bg-blue-600 text-white rounded-lg py-2 text-sm font-medium transition-colors">
-                ✓ Save
-            </button>
-            <button onclick="cancelTaskEdits('${taskId}')" class="flex-1 bg-slate-500/10 hover:bg-slate-500/20 text-slate-600 dark:text-slate-400 rounded-lg py-2 text-sm font-medium transition-colors">
-                ✕ Cancel
-            </button>
-        `;
-
-        content.innerHTML = `
-            <div class="space-y-3">
-                <div>
-                    <p class="text-xs text-slate-400 dark:text-slate-500 uppercase tracking-wide">Title</p>
-                    <input type="text" id="titleEdit" value="${esc(task.title)}" class="input-field mt-1">
-                </div>
-
-                <div>
-                    <p class="text-xs text-slate-400 dark:text-slate-500 uppercase tracking-wide">Description</p>
-                    <textarea id="descriptionEdit" class="input-field mt-1 resize-none" rows="3">${esc(task.description || '')}</textarea>
-                </div>
-
-                <div>
-                    <p class="text-xs text-slate-400 dark:text-slate-500 uppercase tracking-wide">Status</p>
-                    <select id="statusEdit" class="input-field mt-1" onchange="showTaskDetail('${taskId}', true)">
-                        <option value="todo" ${currentStatus === 'todo' ? 'selected' : ''}>📋 To Do</option>
-                        <option value="inprogress" ${currentStatus === 'inprogress' ? 'selected' : ''}>⏳ In Progress</option>
-                        <option value="done" ${currentStatus === 'done' ? 'selected' : ''}>✅ Done</option>
-                        <option value="archive" ${currentStatus === 'archive' ? 'selected' : ''}>📥 Archive</option>
-                    </select>
-                </div>
-
-                <div>
-                    <p class="text-xs text-slate-400 dark:text-slate-500 uppercase tracking-wide">Category</p>
-                    <select id="categoryEdit" class="input-field mt-1">
-                        <option value="">- None -</option>
-                        ${categories.map(c => `<option value="${esc(c)}" ${task.category === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}
-                    </select>
-                </div>
-
-                <div>
-                    <p class="text-xs text-slate-400 dark:text-slate-500 uppercase tracking-wide">Priority</p>
-                    <select id="priorityEdit" class="input-field mt-1">
-                        <option value="">- None -</option>
-                        <option value="high" ${task.priority === 'high' ? 'selected' : ''}>High</option>
-                        <option value="medium" ${task.priority === 'medium' ? 'selected' : ''}>Medium</option>
-                        <option value="low" ${task.priority === 'low' ? 'selected' : ''}>Low</option>
-                    </select>
-                </div>
-
-                ${(currentStatus !== 'done' && currentStatus !== 'archive') ? `
-                <div>
-                    <p class="text-xs text-slate-400 dark:text-slate-500 uppercase tracking-wide">Due Date</p>
-                    <input type="date" id="dueDateEdit" value="${task.dueDate || ''}" class="input-field mt-1">
-                </div>
-                ` : ''}
-
-                ${(currentStatus === 'done' || currentStatus === 'archive') ? `
-                <div>
-                    <p class="text-xs text-slate-400 dark:text-slate-500 uppercase tracking-wide">Completed Date</p>
-                    <input type="date" id="completedDateEdit" value="${task.completedDate || ''}" class="input-field mt-1">
-                </div>
-                ` : ''}
-
-                ${task.createdAt ? `
-                <div>
-                    <p class="text-xs text-slate-400 dark:text-slate-500 uppercase tracking-wide">Created</p>
-                    <p class="text-xs mt-1 text-slate-500">${new Date(task.createdAt).toLocaleDateString()}</p>
-                </div>
-                ` : ''}
-            </div>
-        `;
-    } else {
-        // ✅ View mode 렌더링
-        const buttonDiv = document.getElementById('taskDetailButtons');
-        buttonDiv.className = 'border-t border-slate-200 dark:border-slate-700 pt-4 flex gap-2 flex-shrink-0 hidden';  // 숨기기
-
-        content.innerHTML = `
-            <div class="space-y-3">
-                <div>
-                    <p class="text-xs text-slate-400 dark:text-slate-500 uppercase tracking-wide">Title</p>
-                    <p class="text-sm font-bold text-slate-800 dark:text-slate-100 mt-1">${esc(task.title)}</p>
-                </div>
-
-                ${task.description ? `
-                <div>
-                    <p class="text-xs text-slate-400 dark:text-slate-500 uppercase tracking-wide">Description</p>
-                    <p class="text-sm text-slate-700 dark:text-slate-300 mt-1">${esc(task.description)}</p>
-                </div>
-                ` : ''}
-
-                <div class="grid grid-cols-2 gap-2">
-                    <div>
-                        <p class="text-xs text-slate-400 dark:text-slate-500 uppercase tracking-wide">Status</p>
-                        <p class="text-sm font-medium mt-1">${status.emoji} ${status.text}</p>
-                    </div>
-                    ${task.category ? `
-                    <div>
-                        <p class="text-xs text-slate-400 dark:text-slate-500 uppercase tracking-wide">Category</p>
-                        <p class="text-sm font-medium mt-1 px-2 py-1 rounded bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 inline-block">${esc(task.category)}</p>
-                    </div>
-                    ` : ''}
-                </div>
-
-                ${task.priority ? `
-                <div>
-                    <p class="text-xs text-slate-400 dark:text-slate-500 uppercase tracking-wide">Priority</p>
-                    <p class="text-sm font-medium mt-1 capitalize">${task.priority}</p>
-                </div>
-                ` : ''}
-
-                ${(task.status !== 'done' && task.status !== 'archive') ? `
-                <div>
-                    <p class="text-xs text-slate-400 dark:text-slate-500 uppercase tracking-wide">Due Date</p>
-                    <p class="text-sm font-medium mt-1">📅 ${task.dueDate || '-'}</p>
-                </div>
-                ` : ''}
-
-                ${(task.status === 'done' || task.status === 'archive') ? `
-                <div>
-                    <p class="text-xs text-slate-400 dark:text-slate-500 uppercase tracking-wide">Completed Date</p>
-                    <p class="text-sm font-medium mt-1">✓ ${task.completedDate || '-'}</p>
-                </div>
-                ` : ''}
-
-                ${task.createdAt ? `
-                <div>
-                    <p class="text-xs text-slate-400 dark:text-slate-500 uppercase tracking-wide">Created</p>
-                    <p class="text-xs mt-1">${new Date(task.createdAt).toLocaleDateString()}</p>
-                </div>
-                ` : ''}
-            </div>
-        `;
-    }
-
-    // 먼저 모달 크기 변경
-    const modalContent = document.getElementById('calendarModalContent');
-    modalContent.style.maxWidth = '50rem';
-
-    // gap 추가
-    document.getElementById('contentWrapper').style.gap = '1.5rem';
-
-    // 그 다음 슬라이드 패널 표시
-    setTimeout(() => {
-        panel.style.opacity = '1';
-        panel.style.pointerEvents = 'auto';
-        panel.style.width = '20rem';
-        panel.style.height = 'auto';
-        panel.style.overflow = 'auto';
-    }, 50);
-}
-
-function updateTaskDate(taskId, field, value) {
-    const task = STATE.tasks.find(t => t.id === taskId);
-    if (!task) return;
-
-    taskUpdate(taskId, { [field]: value });
-    showTaskDetail(taskId);
-    renderAll();
-
-    // ✅ calendar modal이 열려있으면 calendar 업데이트
-    const calendarModal = document.getElementById('calendarModal');
-    if (calendarModal && calendarModal.style.display !== 'none') {
-        window.refreshCalendarView?.();
-    }
-}
-
-function saveTaskEdits(taskId) {
-    const task = STATE.tasks.find(t => t.id === taskId);
-    if (!task) return;
-
-    const updates = {};
-
-    // ✅ 모든 필드 수집
-    const titleInput = document.getElementById('titleEdit');
-    const descriptionInput = document.getElementById('descriptionEdit');
-    const statusInput = document.getElementById('statusEdit');
-    const categoryInput = document.getElementById('categoryEdit');
-    const priorityInput = document.getElementById('priorityEdit');
-    const dueDateInput = document.getElementById('dueDateEdit');
-    const completedDateInput = document.getElementById('completedDateEdit');
-
-    if (titleInput && titleInput.value.trim()) {
-        updates.title = titleInput.value.trim();
-    }
-    if (descriptionInput) {
-        updates.description = descriptionInput.value.trim();
-    }
-    if (statusInput) {
-        updates.status = statusInput.value;
-    }
-    if (categoryInput) {
-        updates.category = categoryInput.value || null;
-    }
-    if (priorityInput) {
-        updates.priority = priorityInput.value || null;
-    }
-    if (dueDateInput && dueDateInput.value) {
-        updates.dueDate = dueDateInput.value;
-    }
-    if (completedDateInput && completedDateInput.value) {
-        updates.completedDate = completedDateInput.value;
-    }
-
-    if (Object.keys(updates).length > 0) {
-        taskUpdate(taskId, updates);
-    }
-
-    showTaskDetail(taskId, false);  // ✅ edit mode 해제
-    renderAll();
-
-    const calendarModal = document.getElementById('calendarModal');
-    if (calendarModal && calendarModal.style.display !== 'none') {
-        window.refreshCalendarView?.();
-    }
-}
-
-function cancelTaskEdits(taskId) {
-    showTaskDetail(taskId, false);  // ✅ edit mode 해제, 변경사항 저장 안 함
-}
-
-function toggleTaskCardMenu(taskId, event) {
-    event.stopPropagation();
-    const menu = document.getElementById(`taskCardMenu_${taskId}`);
-
-    // 다른 menu들 닫기
-    document.querySelectorAll('.taskCardMenu').forEach(m => {
-        if (m.id !== `taskCardMenu_${taskId}`) {
-            m.classList.add('hidden');
-        }
-    });
-
-    // 현재 menu 토글
-    menu.classList.toggle('hidden');
-
-    // 외부 클릭 시 menu 닫기
-    document.addEventListener('click', function closeMenu(e) {
-        if (!menu.parentElement.contains(e.target)) {
-            menu.classList.add('hidden');
-            document.removeEventListener('click', closeMenu);
-        }
-    });
-}
-
-// 하위 호환성을 위한 래퍼 함수
-function saveTaskDateEdits(taskId) {
-    saveTaskEdits(taskId);
-}
-
-function cancelTaskDateEdits(taskId) {
-    cancelTaskEdits(taskId);
-}
-
-// ✅ 캘린더에서 delete 호출 (detail panel 닫기 포함)
-function deleteTaskConfirm(taskId) {
-    handleDeleteTask(taskId);
-
-    // Task details 닫기 (캘린더 전용)
-    const panel = document.getElementById('taskDetailPanel');
-    panel.style.width = '0';
-    panel.style.height = '0';
-    panel.style.pointerEvents = 'none';
-    panel.style.overflow = 'hidden';
-    document.getElementById('contentWrapper').style.gap = '0';
-    const modalContent = document.getElementById('calendarModalContent');
-    modalContent.style.maxWidth = '30rem';
-    setTimeout(() => {
-        panel.style.opacity = '0';
-    }, 10);
-}
-
-function handleDeleteGoal(id) {
-    goalDelete(id);
-    renderGoals();
-}
-
-function showCategoryMenu(categoryName) {
-    const el = document.getElementById('categoryModalContent');
-    el.innerHTML = `
-        <div class="space-y-3">
-            <input type="text" id="renameInput" value="${esc(categoryName)}" class="input-field" placeholder="New name">
-            <div class="flex gap-2">
-                <button onclick="confirmRenameCategory('${esc(categoryName)}')" class="btn-primary flex-1 text-sm py-2">Rename</button>
-                <button onclick="confirmDeleteCategory('${esc(categoryName)}')" class="flex-1 bg-red-500/10 text-red-600 hover:bg-red-500/20 rounded-lg py-2 text-sm font-medium transition-colors">Delete</button>
-            </div>
-        </div>
-    `;
-    modalShow('categoryModal');
-    setTimeout(() => document.getElementById('renameInput').focus(), 50);
-}
-
-function confirmRenameCategory(oldName) {
-    const newName = document.getElementById('renameInput').value.trim();
-    if (!newName) {
-        alert('Please enter a name');
-        return;
-    }
-    if (categoryRename(oldName, newName)) {
-        modalHide('categoryModal');
-        renderAll();
-    } else {
-        alert('Subject already exists or is invalid');
-    }
-}
-
-function confirmDeleteCategory(name) {
-    if (confirm(`Delete "${name}"? Tasks with this subject will lose their subject assignment.`)) {
-        categoryDelete(name);
-        modalHide('categoryModal');
-        renderAll();
-    }
-}
-
-// ─── FORM SUBMISSION ─────────────────────────────────────────────────────────
-function handleFormSubmit(e) {
-    e.preventDefault();
-
-    const title = document.getElementById('taskTitle').value.trim();
-
-    if (!title) {
-        document.getElementById('titleError').classList.remove('hidden');
-        document.getElementById('taskTitle').focus();
-        return;
-    }
-
-    document.getElementById('titleError').classList.add('hidden');
-
-    const status = document.getElementById('taskStatus').value;
-    const data = {
-        title,
-        description: document.getElementById('taskDescription').value,
-        category:    document.getElementById('taskCategory').value,
-        priority:    document.getElementById('taskPriority').value,
-        status:      status,
-        dueDate:     (status === 'done' || status === 'archive') ? '' : document.getElementById('taskDueDate').value,
-        completedDate: (status === 'done' || status === 'archive') ? document.getElementById('taskCompletedDate').value : ''
-    };
-
-    if (STATE.editingId) {
-        taskUpdate(STATE.editingId, data);
-    } else {
-        taskCreate(data);
-    }
-
-    modalHide('taskModal');
-    renderAll();
-}
-
-// ─── DARK MODE ───────────────────────────────────────────────────────────────
-function applyDarkMode() {
-    const html = document.documentElement;
-    if (STATE.darkMode) {
-        html.classList.add('dark');
-        document.getElementById('toggleDarkMode').textContent = '☀️';
-    } else {
-        html.classList.remove('dark');
-        document.getElementById('toggleDarkMode').textContent = '🌙';
-    }
-}
-
-// ─── APP TITLE EDITING ────────────────────────────────────────────────────────
-function enableTitleEdit() {
-    const title = document.getElementById('appTitle');
-    const textSpan = title.querySelector('span:first-child');
-    const currentText = textSpan.textContent;
-
-    textSpan.contentEditable = true;
-    textSpan.style.cursor = 'text';
-    textSpan.focus();
-
-    // Select all text
-    const range = document.createRange();
-    range.selectNodeContents(textSpan);
-    window.getSelection().removeAllRanges();
-    window.getSelection().addRange(range);
-
-    function saveTitleEdit() {
-        const newText = textSpan.textContent.trim();
-        textSpan.contentEditable = false;
-        textSpan.style.cursor = 'auto';
-
-        if (newText && newText !== currentText) {
-            STATE.appTitle = newText;
-            lsSave();
-        }
-        renderAppTitle();
-
-        textSpan.removeEventListener('blur', saveTitleEdit);
-        textSpan.removeEventListener('keydown', handleTitleKeydown);
-    }
-
-    function handleTitleKeydown(e) {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            saveTitleEdit();
-        } else if (e.key === 'Escape') {
-            textSpan.textContent = currentText;
-            saveTitleEdit();
-        }
-    }
-
-    textSpan.addEventListener('blur', saveTitleEdit);
-    textSpan.addEventListener('keydown', handleTitleKeydown);
-}
-
-// ─── EVENT WIRING ────────────────────────────────────────────────────────────
-// Toggle category form visibility
-function toggleCategoryForm() {
-    const form = document.getElementById('addCategoryForm');
-    const input = document.getElementById('newCategoryInput');
-    const toggleBtn = document.getElementById('toggleCategoryFormBtn');
-    if (form.style.display === 'none') {
-        form.style.display = 'flex';
-        input.focus();
-        input.value = '';
-        toggleBtn.textContent = '✕';
-        toggleBtn.style.fontSize = '0.875rem';
-    } else {
-        form.style.display = 'none';
-        toggleBtn.textContent = '+';
-        toggleBtn.style.fontSize = '1rem';
-    }
-}
-
-function wireEvents() {
-
-    // Task Modal
-    document.getElementById('openAddTaskModal').addEventListener('click', openAddModal);
-    document.getElementById('closeModal').addEventListener('click', closeTaskModalWithConfirm);
-    document.getElementById('taskModal').addEventListener('click', function(e) {
-        if (e.target === this) closeTaskModalWithConfirm();
-    });
-    document.getElementById('taskForm').addEventListener('submit', handleFormSubmit);
-    document.getElementById('deleteTaskBtn').addEventListener('click', function() {
-        if (STATE.editingId) {
-            taskDelete(STATE.editingId);
-            modalHide('taskModal');
-            renderAll();
-        }
-    });
-
-    // Category Modal
-    document.getElementById('closeCategoryModal').addEventListener('click', () => modalHide('categoryModal'));
-    document.getElementById('categoryModal').addEventListener('click', function(e) {
-        if (e.target === this) modalHide('categoryModal');
-    });
-
-    // Calendar variables and functions
-    let calendarMonth = new Date().getMonth();
-    let calendarYear = new Date().getFullYear();
-    let calendarSelectedDate = null;
-
-    function getTasksByDate(dateStr) {
-        return STATE.tasks.filter(t => {
-            if (t.status === 'done' || t.status === 'archive') {
-                return t.completedDate === dateStr;
-            } else {
-                return t.dueDate === dateStr;
-            }
-        });
-    }
-
-    function renderCalendar() {
-        const firstDay = new Date(calendarYear, calendarMonth, 1).getDay();
-        const daysInMonth = new Date(calendarYear, calendarMonth + 1, 0).getDate();
-        const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
-                            'July', 'August', 'September', 'October', 'November', 'December'];
-
-        document.getElementById('calendarTitle').textContent = `${monthNames[calendarMonth]} ${calendarYear}`;
-
-        const grid = document.getElementById('calendarGrid');
-        grid.innerHTML = '';
-
-        // Empty cells for days before month starts
-        for (let i = 0; i < firstDay; i++) {
-            const emptyDiv = document.createElement('div');
-            grid.appendChild(emptyDiv);
-        }
-
-        // Days of the month
-        for (let day = 1; day <= daysInMonth; day++) {
-            const dateStr = `${calendarYear}-${String(calendarMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-            const tasksOnDate = getTasksByDate(dateStr);
-            const taskCount = tasksOnDate.length;
-
-            const dayDiv = document.createElement('div');
-            dayDiv.className = 'p-2 rounded-lg text-center cursor-pointer text-xs font-medium transition-all duration-200';
-
-            // 선택된 날짜 강조
-            if (dateStr === calendarSelectedDate) {
-                dayDiv.className += ' bg-blue-500 dark:bg-blue-600 text-white border-2 border-blue-600 dark:border-blue-700 ring-2 ring-blue-400';
-            } else {
-                dayDiv.className += ' bg-slate-100 dark:bg-slate-700/40 hover:bg-blue-100 dark:hover:bg-blue-900/30';
-
-                if (taskCount > 0) {
-                    dayDiv.className += ' border-2 border-blue-400 dark:border-blue-500';
-                } else {
-                    dayDiv.className += ' border border-slate-200 dark:border-slate-600';
-                }
-            }
-
-            const today = new Date();
-            if (day === today.getDate() && calendarMonth === today.getMonth() && calendarYear === today.getFullYear()) {
-                dayDiv.className += ' ring-2 ring-emerald-400 dark:ring-emerald-500';
-            }
-
-            // ✅ [완료된것/전체] 형태로 count 표시
-            const completedCount = tasksOnDate.filter(t => t.status === 'done' || t.status === 'archive').length;
-            dayDiv.innerHTML = `<div>${day}</div>` + (taskCount > 0 ? `<div class="text-xs text-blue-600 dark:text-blue-400 font-bold">[${completedCount}/${taskCount}]</div>` : '');
-            dayDiv.addEventListener('click', () => {
-                calendarSelectedDate = dateStr;
-                renderCalendar();
-                showSelectedDateTasks();
-
-                // ✅ task details 닫기
-                const panel = document.getElementById('taskDetailPanel');
-                panel.style.width = '0';
-                panel.style.height = '0';
-                panel.style.pointerEvents = 'none';
-                panel.style.overflow = 'hidden';
-                document.getElementById('contentWrapper').style.gap = '0';
-                const modalContent = document.getElementById('calendarModalContent');
-                modalContent.style.maxWidth = '30rem';
-                setTimeout(() => {
-                    panel.style.opacity = '0';
-                }, 10);
-            });
-            grid.appendChild(dayDiv);
-        }
-    }
-
-    function showSelectedDateTasks() {
-        if (!calendarSelectedDate) {
-            document.getElementById('selectedDateText').textContent = 'Select a date';
-            document.getElementById('selectedTasksList').innerHTML = '';
-            return;
-        }
-
-        let tasks = getTasksByDate(calendarSelectedDate);
-
-        // Status 순서: todo -> inprogress -> done -> archive
-        const statusOrder = { todo: 0, inprogress: 1, done: 2, archive: 3 };
-        tasks.sort((a, b) => (statusOrder[a.status] || 0) - (statusOrder[b.status] || 0));
-
-        const [y, m, d] = calendarSelectedDate.split('-').map(Number);
-        const dateObj = new Date(y, m - 1, d);
-        const dateStr = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-
-        document.getElementById('selectedDateText').textContent = `Tasks for ${dateStr} (${tasks.length})`;
-
-        const tasksList = document.getElementById('selectedTasksList');
-        tasksList.innerHTML = tasks.length === 0
-            ? '<p class="text-xs text-slate-400 dark:text-slate-500">No tasks on this date</p>'
-            : tasks.map(t => {
-                const statusLabels = {
-                    'todo': { emoji: '📋', text: 'To Do', color: 'text-slate-600 dark:text-slate-400' },
-                    'inprogress': { emoji: '⏳', text: 'In Progress', color: 'text-blue-600 dark:text-blue-400' },
-                    'done': { emoji: '✅', text: 'Done', color: 'text-emerald-600 dark:text-emerald-400' },
-                    'archive': { emoji: '📥', text: 'Archive', color: 'text-amber-600 dark:text-amber-400' }
-                };
-                const status = statusLabels[t.status] || statusLabels['todo'];
-                return `
-                    <div class="p-2 rounded-lg bg-slate-100 dark:bg-slate-700/40 text-sm flex items-center gap-2 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-600/40 transition-colors" onclick="showTaskDetail('${esc(t.id)}')">
-                        <div class="font-medium text-slate-800 dark:text-slate-100 truncate flex-1">${esc(t.title)}</div>
-                        ${t.category ? `<span class="px-1.5 py-0.5 rounded text-xs bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 flex-shrink-0">${esc(t.category)}</span>` : ''}
-                        <span class="${status.color} text-xs font-medium ml-auto flex-shrink-0">${status.emoji} ${status.text}</span>
-                    </div>
-                `;
-            }).join('');
-    }
-
-    // ✅ window에 calendar 함수들 할당 (외부에서 접근 가능하게)
-    window.refreshCalendarView = function() {
-        renderCalendar();
-        showSelectedDateTasks();
-    };
-
-    // Calendar event listeners
-    document.getElementById('openCalendarBtn').addEventListener('click', function() {
-        modalShow('calendarModal');
-        renderCalendar();
-        showSelectedDateTasks();
-    });
-
-    document.getElementById('closeCalendarModal').addEventListener('click', () => {
-        // 상세 페이지 초기화
-        const panel = document.getElementById('taskDetailPanel');
-        panel.style.opacity = '0';
-        panel.style.pointerEvents = 'none';
-        panel.style.width = '0';
-        panel.style.height = '0';
-        panel.style.overflow = 'hidden';
-
-        // gap 제거
-        document.getElementById('contentWrapper').style.gap = '0';
-
-        // 모달 크기 원래대로
-        const modalContent = document.getElementById('calendarModalContent');
-        modalContent.style.maxWidth = '30rem';
-
-        // 모달 닫기
-        modalHide('calendarModal');
-    });
-
-    document.getElementById('closeTaskDetail').addEventListener('click', () => {
-        const panel = document.getElementById('taskDetailPanel');
-
-        // 1. 즉시 width, height와 pointer-events 제거 (transition 영향 안 받음)
-        panel.style.width = '0';
-        panel.style.height = '0';
-        panel.style.pointerEvents = 'none';
-        panel.style.overflow = 'hidden';
-
-        // 2. gap과 maxWidth도 즉시 변경
-        document.getElementById('contentWrapper').style.gap = '0';
-        const modalContent = document.getElementById('calendarModalContent');
-        modalContent.style.maxWidth = '30rem';
-
-        // 3. 마지막으로 opacity 변경 (이미 레이아웃은 완성됨)
-        setTimeout(() => {
-            panel.style.opacity = '0';
-        }, 10);
-    });
-    document.getElementById('calendarModal').addEventListener('click', function(e) {
-        if (e.target === this) modalHide('calendarModal');
-    });
-
-    document.getElementById('prevMonth').addEventListener('click', function() {
-        calendarMonth--;
-        if (calendarMonth < 0) {
-            calendarMonth = 11;
-            calendarYear--;
-        }
-        renderCalendar();
-    });
-
-    document.getElementById('nextMonth').addEventListener('click', function() {
-        calendarMonth++;
-        if (calendarMonth > 11) {
-            calendarMonth = 0;
-            calendarYear++;
-        }
-        renderCalendar();
-    });
-
-    // ─── 24H SCHEDULE (wheel initialized in schedule-wheel.js) ────────────────
-    document.getElementById('openScheduleBtn').addEventListener('click', function() {
-        modalShow('scheduleModal');
-        initScheduleWheel();
-    });
-
-    document.getElementById('closeScheduleModal').addEventListener('click', () => modalHide('scheduleModal'));
-    document.getElementById('scheduleModal').addEventListener('click', function(e) {
-        if (e.target === this) modalHide('scheduleModal');
-    });
-
-    // ─── ARCHIVE MODAL ─────────────────────────────────────────
-    document.getElementById('openArchiveBtn').addEventListener('click', function() {
-        modalShow('archiveModal');
-        renderArchiveList();
-    });
-
-    document.getElementById('closeArchiveModal').addEventListener('click', () => modalHide('archiveModal'));
-    document.getElementById('archiveModal').addEventListener('click', function(e) {
-        if (e.target === this) modalHide('archiveModal');
-    });
-
-    document.getElementById('archiveSearchInput').addEventListener('input', renderArchiveList);
-    document.getElementById('archiveFilterDateFrom').addEventListener('change', renderArchiveList);
-    document.getElementById('archiveFilterDateTo').addEventListener('change', renderArchiveList);
-
-    // ─── DATA EXPORT/IMPORT ───────────────────────────────────────────────────
-    function exportData() {
-        const data = {};
-        for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
-            if (key && key.startsWith('sa_')) {
-                data[key] = localStorage.getItem(key);
-            }
-        }
-
-        const blob = new Blob([JSON.stringify(data, null, 2)], {
-            type: 'application/json'
-        });
-
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `todo-backup-${new Date().toISOString().split('T')[0]}.json`;
-        a.click();
-        URL.revokeObjectURL(url);
-    }
-
-    function importData(file) {
-        const reader = new FileReader();
-
-        reader.onload = function(e) {
-            try {
-                const data = JSON.parse(e.target.result);
-                const allKeys = Object.keys(data);
-
-                if (allKeys.length === 0) {
-                    alert('Error: Invalid backup file (no data found)');
-                    return;
-                }
-
-                Object.keys(data).forEach((key) => {
-                    localStorage.setItem(key, data[key]);
-                });
-
-                alert(`✅ Data imported successfully!\n${allKeys.length} items restored.`);
-                location.reload();
-            } catch (err) {
-                alert('Error: Failed to import data. Make sure the file is valid JSON.');
-                console.error(err);
-            }
-        };
-
-        reader.onerror = function() {
-            alert('Error: Failed to read file.');
-        };
-
-        reader.readAsText(file);
-    }
-
-    document.getElementById('exportDataBtn').addEventListener('click', function() {
-        exportData();
-    });
-
-    document.getElementById('importDataBtn').addEventListener('click', function() {
-        document.getElementById('importDataInput').click();
-    });
-
-    document.getElementById('importDataInput').addEventListener('change', function(e) {
-        const file = e.target.files[0];
-        if (file) {
-            if (!file.name.endsWith('.json')) {
-                alert('Error: Please select a JSON file');
-                return;
-            }
-            if (confirm('This will replace your current data. Continue?')) {
-                importData(file);
-            }
-        }
-    });
-
-    // Dark mode
-    document.getElementById('toggleDarkMode').addEventListener('click', function() {
-        STATE.darkMode = !STATE.darkMode;
-        applyDarkMode();
-        lsSave();
-    });
-
-    // Title editing
-    document.getElementById('appTitle').addEventListener('click', enableTitleEdit);
-
-    // Search
-    document.getElementById('searchInput').addEventListener('input', function(e) {
-        STATE.search = e.target.value;
-        renderBoard();
-    });
-
-    // Add Category
-    document.getElementById('addCategoryBtn').addEventListener('click', function() {
-        const input = document.getElementById('newCategoryInput');
-        const val   = input.value.trim();
-        if (val && categoryCreate(val)) {
-            input.value = '';
-            renderAll();
-        }
-    });
-
-    document.getElementById('newCategoryInput').addEventListener('keydown', function(e) {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            document.getElementById('addCategoryBtn').click();
-        }
-    });
-
-    // Add Goal Form
-    document.getElementById('toggleAddGoalBtn').addEventListener('click', function() {
-        const form = document.getElementById('addGoalForm');
-        form.style.display = 'flex';
-        document.getElementById('newGoalInput').focus();
-    });
-
-    document.getElementById('saveGoalBtn').addEventListener('click', function() {
-        const input = document.getElementById('newGoalInput');
-        const val = input.value.trim();
-        if (val) {
-            goalCreate(val);
-            input.value = '';
-            renderGoals();
-            document.getElementById('addGoalForm').style.display = 'none';
-        }
-    });
-
-    document.getElementById('cancelGoalBtn').addEventListener('click', function() {
-        document.getElementById('newGoalInput').value = '';
-        document.getElementById('addGoalForm').style.display = 'none';
-    });
-
-    document.getElementById('newGoalInput').addEventListener('keydown', function(e) {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            document.getElementById('saveGoalBtn').click();
-        } else if (e.key === 'Escape') {
-            document.getElementById('cancelGoalBtn').click();
-        }
-    });
-
-    // Keyboard shortcuts
-    document.addEventListener('keydown', function(e) {
-        if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-            e.preventDefault();
-            openAddModal();
-        }
-        if (e.key === 'Escape') {
-            if (document.getElementById('taskModal').style.display === 'flex') {
-                closeTaskModalWithConfirm();
-            } else if (document.getElementById('categoryModal').style.display === 'flex') {
-                modalHide('categoryModal');
-            }
-        }
-    });
-}
-
-// ─── INIT ─────────────────────────────────────────────────────────────────────
-function init() {
-    lsLoad();
-    applyDarkMode();
-    wireEvents();
-    renderAll();
-}
-
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-} else {
-    init();
-}
-</script>
+<script src="app.js"></script>
 
 <script src="schedule-wheel.js"></script>
 

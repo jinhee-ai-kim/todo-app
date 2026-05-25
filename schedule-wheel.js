@@ -173,7 +173,7 @@ function scheduleAdd(data) {
         color: color || SCHEDULE.COLORS[0].hex
     });
 
-    lsSave();
+    dbSyncSchedule();
     return { ok: true };
 }
 
@@ -206,13 +206,13 @@ function scheduleEdit(id, data) {
     event.endSlot = endSlot;
     event.color = color || event.color;
 
-    lsSave();
+    dbSyncSchedule();
     return { ok: true };
 }
 
 function scheduleDelete(id) {
     STATE.schedule = STATE.schedule.filter(e => e.id !== id);
-    lsSave();
+    dbSyncSchedule();
 }
 
 // ─── RENDERING ────────────────────────────────────────────────────────────────
@@ -489,10 +489,10 @@ function updateCurrentActivityDisplay() {
     const activity = getCurrentActivity();
     if (activity) {
         display.textContent = `Now is the time to do ${activity}`;
-        display.style.display = 'block';
+        display.style.removeProperty('display');
     } else {
         display.textContent = '';
-        display.style.display = 'none';
+        display.style.removeProperty('display');
     }
 }
 
