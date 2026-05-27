@@ -943,7 +943,7 @@ function renderArchiveList() {
                 <div class="flex items-center gap-2 min-w-0 flex-wrap">
                     <div class="text-sm font-medium text-slate-800 dark:text-slate-100 whitespace-nowrap">${esc(task.title)}</div>
                     ${getCategoryName(task) ? `<span class="px-1.5 py-0.5 rounded text-xs bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 whitespace-nowrap">${esc(getCategoryName(task))}</span>` : ''}
-                    <span class="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">📅 ${formatDate(task.completedDate)}</span>
+                    <span class="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap"> ${formatDate(task.completedDate)}</span>
                 </div>
             </div>
         </div>
@@ -1051,42 +1051,6 @@ function showTaskDetail(taskId, editMode = false) {
     const panel = document.getElementById('taskDetailPanel');
     const content = document.getElementById('taskDetailContent');
 
-    // ✅ Menu 버튼 생성 및 이벤트 핸들러
-    const menuContainer = document.getElementById('taskMenuContainer');
-    let menuBtn = menuContainer.querySelector('.task-menu-btn');
-
-    if (!menuBtn) {
-        menuBtn = document.createElement('button');
-        menuBtn.className = 'task-menu-btn btn-ghost p-1 text-lg';
-        menuBtn.innerHTML = '⋮';
-        menuContainer.insertBefore(menuBtn, menuContainer.firstChild);
-    }
-
-    // Menu 버튼 클릭 핸들러
-    menuBtn.onclick = (e) => {
-        e.stopPropagation();
-        const menu = document.getElementById('taskMenu');
-        menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
-    };
-
-    // ✅ Menu 버튼들 업데이트
-    const editMenuBtn = document.querySelector('#taskMenu .edit-menu-btn');
-    const deleteMenuBtn = document.querySelector('#taskMenu .delete-menu-btn');
-
-    if (editMenuBtn) {
-        editMenuBtn.onclick = () => {
-            document.getElementById('taskMenu').style.display = 'none';
-            showTaskDetail(taskId, true);  // ✅ edit mode로 열기
-        };
-    }
-
-    if (deleteMenuBtn) {
-        deleteMenuBtn.onclick = () => {
-            document.getElementById('taskMenu').style.display = 'none';
-            deleteTaskConfirm(taskId);
-        };
-    }
-
     // ✅ Edit mode 렌더링
     if (editMode) {
         // 표시 중인 카테고리 + 현재 task의 숨김 카테고리(있을 경우)만 포함
@@ -1179,7 +1143,11 @@ function showTaskDetail(taskId, editMode = false) {
     } else {
         // ✅ View mode 렌더링
         const buttonDiv = document.getElementById('taskDetailButtons');
-        buttonDiv.className = 'border-t border-slate-200 dark:border-slate-700 pt-4 flex gap-2 flex-shrink-0 hidden';  // 숨기기
+        buttonDiv.className = 'border-t border-slate-200 dark:border-slate-700 pt-4 px-4 pb-4 flex gap-2 flex-shrink-0';
+        buttonDiv.innerHTML = `
+            <button onclick="showTaskDetail('${taskId}', true)" class="flex-1 px-3 py-2 rounded-lg text-sm font-medium bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-500/20 transition-colors">✎ Edit</button>
+            <button onclick="deleteTaskConfirm('${taskId}')" class="flex-1 px-3 py-2 rounded-lg text-sm font-medium bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-500/20 transition-colors">🗑️ Delete</button>
+        `;
 
         content.innerHTML = `
             <div class="space-y-3">

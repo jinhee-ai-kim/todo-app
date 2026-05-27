@@ -735,22 +735,10 @@
 
             <!-- Right: Task Detail Panel -->
             <div id="taskDetailPanel" class="border-l border-slate-200 dark:border-slate-700 transition-opacity duration-300 flex flex-col" style="width: 0; height: 0; opacity: 0; pointer-events: none; overflow: hidden; flex-shrink: 0; min-height: 0;">
-            <div class="flex justify-between items-center mb-4 relative flex-shrink-0 pl-4">
+            <div class="flex items-center mb-4 relative flex-shrink-0 px-4">
                 <button id="closeTaskDetail" class="btn-ghost p-1 text-lg">←</button>
                 <h3 class="font-bold text-sm flex-1 text-center">Task Details</h3>
-
-                <!-- Task Menu -->
-                <div id="taskMenuContainer" class="relative">
-                    <button id="taskMenuBtn" class="btn-ghost p-1 text-lg">⋮</button>
-                    <div id="taskMenu" class="absolute -left-[100px] top-full mt-1 bg-white dark:bg-slate-700 rounded-lg shadow-lg border border-slate-200 dark:border-slate-600 z-10 hidden w-28">
-                        <button class="edit-menu-btn w-full flex items-center justify-between px-3 py-1.5 text-xs text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-600/40 transition-colors">
-                            <span>Edit</span> <span>✎</span>
-                        </button>
-                        <button class="delete-menu-btn w-full flex items-center justify-between px-3 py-1.5 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
-                            <span>Delete</span> <span>🗑️</span>
-                        </button>
-                    </div>
-                </div>
+                <div class="w-8"></div>
             </div>
             <div id="taskDetailContent" class="space-y-3 flex-1 overflow-y-auto px-4">
             </div>
