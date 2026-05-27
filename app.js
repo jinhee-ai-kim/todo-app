@@ -33,8 +33,14 @@ const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 let USER_ID = null;
 
 // ─── AUTH ─────────────────────────────────────────────────────────────────────
-function showLoginScreen()  { document.getElementById('loginScreen').style.display = 'flex'; }
-function hideLoginScreen()  { document.getElementById('loginScreen').style.display = 'none'; }
+function showLoginScreen()  {
+    document.getElementById('loginScreen').style.display = 'flex';
+    document.getElementById('openAddTaskModal').style.display = 'none';
+}
+function hideLoginScreen()  {
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('openAddTaskModal').style.display = 'flex';
+}
 
 async function signInWithGoogle() {
     const { error } = await db.auth.signInWithOAuth({
@@ -200,7 +206,7 @@ function taskCreate(data) {
         id:          createTaskId(),
         title:       data.title.trim(),
         description: (data.description || '').trim(),
-
+        categoryId:  data.categoryId || '',
         priority:    data.priority  || 'medium',
         status:      data.status    || 'todo',
         dueDate:     data.dueDate   || '',
@@ -395,7 +401,7 @@ function formatDate(dateStr) {
     if (!dateStr) return '';
     const [y, m, d] = dateStr.split('-').map(Number);
     const date = new Date(y, m - 1, d);
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 function isOverdue(dateStr) {
@@ -762,12 +768,14 @@ function initGoalDragAndDrop() {
 function modalShow(modalId) {
     document.getElementById(modalId).style.display = 'flex';
     document.body.style.overflow = 'hidden';
+    document.getElementById('openAddTaskModal').style.display = 'none';
 }
 
 function modalHide(modalId) {
     document.getElementById(modalId).style.display = 'none';
     document.body.style.overflow = '';
     if (modalId === 'taskModal') STATE.editingId = null;
+    document.getElementById('openAddTaskModal').style.display = 'flex';
 }
 
 function updateTaskDateFields() {
@@ -928,25 +936,86 @@ function renderArchiveList() {
     }
 
     list.innerHTML = archived.map(task => `
-        <div class="pl-3 pr-3 pt-1 pb-1 rounded-lg bg-slate-100 dark:bg-slate-700/40 border border-slate-200 dark:border-slate-600">
+        <div class="pl-3 pr-3 pt-2 pb-2 rounded-lg bg-slate-100 dark:bg-slate-700/40 border border-slate-200 dark:border-slate-600 cursor-pointer"
+             onclick="if(!event.target.closest('button')) showTaskDetailOverlay('${esc(task.id)}')"
+             title="Click to view details">
             <div class="flex items-center gap-3 justify-between">
                 <div class="flex items-center gap-2 min-w-0 flex-wrap">
                     <div class="text-sm font-medium text-slate-800 dark:text-slate-100 whitespace-nowrap">${esc(task.title)}</div>
                     ${getCategoryName(task) ? `<span class="px-1.5 py-0.5 rounded text-xs bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 whitespace-nowrap">${esc(getCategoryName(task))}</span>` : ''}
-                    <span class="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">📅 ${task.completedDate}</span>
-                </div>
-                <div class="flex items-center gap-1 flex-shrink-0">
-                    <button class="p-1 text-blue-600 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded transition-colors text-lg"
-                            onclick="handleRestoreArchive('${esc(task.id)}')"
-                            title="Restore to Done">⏏️</button>
-                    <button class="p-1 text-red-600 hover:bg-red-100 dark:hover:bg-red-900/40 rounded transition-colors"
-                            onclick="handleDeleteArchive('${esc(task.id)}')"
-                            title="Delete">❎</button>
+                    <span class="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">📅 ${formatDate(task.completedDate)}</span>
                 </div>
             </div>
-            ${task.description ? `<div class="text-xs text-slate-500 dark:text-slate-400 mt-0 mb-1 line-clamp-2">${esc(task.description)}</div>` : ''}
         </div>
     `).join('');
+}
+
+function showTaskDetailOverlay(taskId) {
+    const task = STATE.tasks.find(t => t.id === taskId);
+    if (!task) return;
+
+    const statusLabels = {
+        'todo':       { emoji: '📋', text: 'To Do' },
+        'inprogress': { emoji: '⏳', text: 'In Progress' },
+        'done':       { emoji: '✅', text: 'Done' },
+        'archive':    { emoji: '📥', text: 'Archive' }
+    };
+    const status = statusLabels[task.status] || statusLabels['todo'];
+
+    document.getElementById('taskDetailOverlayContent').innerHTML = `
+        <div>
+            <p class="text-xs text-slate-400 dark:text-slate-500 uppercase tracking-wide">Title</p>
+            <p class="font-bold text-slate-800 dark:text-slate-100 mt-1">${esc(task.title)}</p>
+        </div>
+        ${task.description ? `
+        <div>
+            <p class="text-xs text-slate-400 dark:text-slate-500 uppercase tracking-wide">Description</p>
+            <p class="text-slate-700 dark:text-slate-300 mt-1">${esc(task.description)}</p>
+        </div>` : ''}
+        <div class="grid grid-cols-2 gap-2">
+            <div>
+                <p class="text-xs text-slate-400 dark:text-slate-500 uppercase tracking-wide">Status</p>
+                <p class="font-medium mt-1">${status.emoji} ${status.text}</p>
+            </div>
+            ${getCategoryName(task) ? `
+            <div>
+                <p class="text-xs text-slate-400 dark:text-slate-500 uppercase tracking-wide">Category</p>
+                <span class="mt-1 px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 inline-block">${esc(getCategoryName(task))}</span>
+            </div>` : ''}
+        </div>
+        ${task.priority ? `
+        <div>
+            <p class="text-xs text-slate-400 dark:text-slate-500 uppercase tracking-wide">Priority</p>
+            <p class="font-medium mt-1 capitalize">${task.priority}</p>
+        </div>` : ''}
+        ${task.completedDate ? `
+        <div>
+            <p class="text-xs text-slate-400 dark:text-slate-500 uppercase tracking-wide">Completed Date</p>
+            <p class="font-medium mt-1">✓ ${formatDate(task.completedDate)}</p>
+        </div>` : ''}
+        ${task.createdAt ? `
+        <div>
+            <p class="text-xs text-slate-400 dark:text-slate-500 uppercase tracking-wide">Created</p>
+            <p class="text-xs mt-1 text-slate-500">${new Date(task.createdAt).toLocaleDateString()}</p>
+        </div>` : ''}
+    `;
+
+    document.getElementById('taskDetailOverlayButtons').innerHTML = `
+        <button onclick="handleRestoreArchive('${esc(taskId)}'); document.getElementById('taskDetailOverlay').style.display='none'; renderArchiveList();"
+                class="flex-1 px-3 py-2 rounded-lg text-sm font-medium
+                       bg-blue-500/10 text-blue-600 dark:text-blue-400
+                       hover:bg-blue-500/20 transition-colors">
+            ⏏️ Restore
+        </button>
+        <button onclick="handleDeleteArchive('${esc(taskId)}'); document.getElementById('taskDetailOverlay').style.display='none';"
+                class="flex-1 px-3 py-2 rounded-lg text-sm font-medium
+                       bg-red-500/10 text-red-600 dark:text-red-400
+                       hover:bg-red-500/20 transition-colors">
+            🗑️ Delete
+        </button>
+    `;
+
+    document.getElementById('taskDetailOverlay').style.display = 'flex';
 }
 
 function handleRestoreArchive(id) {
@@ -1149,14 +1218,14 @@ function showTaskDetail(taskId, editMode = false) {
                 ${(task.status !== 'done' && task.status !== 'archive') ? `
                 <div>
                     <p class="text-xs text-slate-400 dark:text-slate-500 uppercase tracking-wide">Due Date</p>
-                    <p class="text-sm font-medium mt-1">📅 ${task.dueDate || '-'}</p>
+                    <p class="text-sm font-medium mt-1">📅 ${formatDate(task.dueDate) || '-'}</p>
                 </div>
                 ` : ''}
 
                 ${(task.status === 'done' || task.status === 'archive') ? `
                 <div>
                     <p class="text-xs text-slate-400 dark:text-slate-500 uppercase tracking-wide">Completed Date</p>
-                    <p class="text-sm font-medium mt-1">✓ ${task.completedDate || '-'}</p>
+                    <p class="text-sm font-medium mt-1">✓ ${formatDate(task.completedDate) || '-'}</p>
                 </div>
                 ` : ''}
 
@@ -1170,21 +1239,7 @@ function showTaskDetail(taskId, editMode = false) {
         `;
     }
 
-    // 먼저 모달 크기 변경
-    const modalContent = document.getElementById('calendarModalContent');
-    modalContent.style.maxWidth = '50rem';
-
-    // gap 추가
-    document.getElementById('contentWrapper').style.gap = '1.5rem';
-
-    // 그 다음 슬라이드 패널 표시
-    setTimeout(() => {
-        panel.style.opacity = '1';
-        panel.style.pointerEvents = 'auto';
-        panel.style.width = '20rem';
-        panel.style.height = 'auto';
-        panel.style.overflow = 'auto';
-    }, 50);
+    openTaskDetailPanel();
 }
 
 function updateTaskDate(taskId, field, value) {
@@ -1291,22 +1346,51 @@ function cancelTaskDateEdits(taskId) {
     cancelTaskEdits(taskId);
 }
 
+function openTaskDetailPanel() {
+    const panel = document.getElementById('taskDetailPanel');
+    if (window.innerWidth < 640) {
+        panel.style.width = '';
+        panel.style.height = '';
+        panel.style.opacity = '1';
+        panel.style.pointerEvents = 'auto';
+        panel.style.overflow = 'auto';
+    } else {
+        document.getElementById('calendarModalContent').style.maxWidth = '50rem';
+        document.getElementById('contentWrapper').style.gap = '1.5rem';
+        setTimeout(() => {
+            panel.style.opacity = '1';
+            panel.style.pointerEvents = 'auto';
+            panel.style.width = '20rem';
+            panel.style.height = 'auto';
+            panel.style.overflow = 'auto';
+        }, 50);
+    }
+}
+
+function closeTaskDetailPanel() {
+    const panel = document.getElementById('taskDetailPanel');
+    if (window.innerWidth < 640) {
+        panel.style.opacity = '0';
+        panel.style.pointerEvents = 'none';
+        panel.style.overflow = 'hidden';
+        panel.style.width = '';
+        panel.style.height = '';
+    } else {
+        panel.style.width = '0';
+        panel.style.height = '0';
+        panel.style.pointerEvents = 'none';
+        panel.style.overflow = 'hidden';
+        document.getElementById('contentWrapper').style.gap = '0';
+        document.getElementById('calendarModalContent').style.maxWidth = '30rem';
+        setTimeout(() => { panel.style.opacity = '0'; }, 10);
+    }
+}
+
 // ✅ 캘린더에서 delete 호출 (detail panel 닫기 포함)
 function deleteTaskConfirm(taskId) {
     handleDeleteTask(taskId);
 
-    // Task details 닫기 (캘린더 전용)
-    const panel = document.getElementById('taskDetailPanel');
-    panel.style.width = '0';
-    panel.style.height = '0';
-    panel.style.pointerEvents = 'none';
-    panel.style.overflow = 'hidden';
-    document.getElementById('contentWrapper').style.gap = '0';
-    const modalContent = document.getElementById('calendarModalContent');
-    modalContent.style.maxWidth = '30rem';
-    setTimeout(() => {
-        panel.style.opacity = '0';
-    }, 10);
+    closeTaskDetailPanel();
 }
 
 function handleDeleteGoal(id) {
@@ -1512,18 +1596,7 @@ function wireEvents() {
                 renderCalendar();
                 showSelectedDateTasks();
 
-                // ✅ task details 닫기
-                const panel = document.getElementById('taskDetailPanel');
-                panel.style.width = '0';
-                panel.style.height = '0';
-                panel.style.pointerEvents = 'none';
-                panel.style.overflow = 'hidden';
-                document.getElementById('contentWrapper').style.gap = '0';
-                const modalContent = document.getElementById('calendarModalContent');
-                modalContent.style.maxWidth = '30rem';
-                setTimeout(() => {
-                    panel.style.opacity = '0';
-                }, 10);
+                closeTaskDetailPanel();
             });
             grid.appendChild(dayDiv);
         }
@@ -1583,43 +1656,12 @@ function wireEvents() {
     });
 
     document.getElementById('closeCalendarModal').addEventListener('click', () => {
-        // 상세 페이지 초기화
-        const panel = document.getElementById('taskDetailPanel');
-        panel.style.opacity = '0';
-        panel.style.pointerEvents = 'none';
-        panel.style.width = '0';
-        panel.style.height = '0';
-        panel.style.overflow = 'hidden';
-
-        // gap 제거
-        document.getElementById('contentWrapper').style.gap = '0';
-
-        // 모달 크기 원래대로
-        const modalContent = document.getElementById('calendarModalContent');
-        modalContent.style.maxWidth = '30rem';
-
-        // 모달 닫기
+        closeTaskDetailPanel();
         modalHide('calendarModal');
     });
 
     document.getElementById('closeTaskDetail').addEventListener('click', () => {
-        const panel = document.getElementById('taskDetailPanel');
-
-        // 1. 즉시 width, height와 pointer-events 제거 (transition 영향 안 받음)
-        panel.style.width = '0';
-        panel.style.height = '0';
-        panel.style.pointerEvents = 'none';
-        panel.style.overflow = 'hidden';
-
-        // 2. gap과 maxWidth도 즉시 변경
-        document.getElementById('contentWrapper').style.gap = '0';
-        const modalContent = document.getElementById('calendarModalContent');
-        modalContent.style.maxWidth = '30rem';
-
-        // 3. 마지막으로 opacity 변경 (이미 레이아웃은 완성됨)
-        setTimeout(() => {
-            panel.style.opacity = '0';
-        }, 10);
+        closeTaskDetailPanel();
     });
     document.getElementById('calendarModal').addEventListener('click', function(e) {
         if (e.target === this) modalHide('calendarModal');
@@ -1644,9 +1686,33 @@ function wireEvents() {
     });
 
     // ─── 24H SCHEDULE (wheel initialized in schedule-wheel.js) ────────────────
+    function switchSchedTab(tab) {
+        if (window.innerWidth >= 640) return;
+        const wheel = document.getElementById('schedWheelSection');
+        const form  = document.getElementById('schedFormSection');
+        const tabWheel = document.getElementById('schedTabWheel');
+        const tabForm  = document.getElementById('schedTabForm');
+        if (tab === 'wheel') {
+            wheel.style.display = '';
+            form.style.display  = 'none';
+            tabWheel.classList.add('tab-active');
+            tabForm.classList.remove('tab-active');
+        } else {
+            wheel.style.display = 'none';
+            form.style.display  = '';
+            tabForm.classList.add('tab-active');
+            tabWheel.classList.remove('tab-active');
+        }
+    }
+
+    document.getElementById('schedTabWheel').addEventListener('click', () => switchSchedTab('wheel'));
+    document.getElementById('schedTabForm').addEventListener('click',  () => switchSchedTab('form'));
+    window.switchSchedTab = switchSchedTab;
+
     document.getElementById('openScheduleBtn').addEventListener('click', function() {
         modalShow('scheduleModal');
         initScheduleWheel();
+        switchSchedTab('wheel');
     });
 
     document.getElementById('closeScheduleModal').addEventListener('click', () => modalHide('scheduleModal'));

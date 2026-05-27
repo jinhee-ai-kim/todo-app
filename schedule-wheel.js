@@ -276,6 +276,7 @@ function renderWheel() {
             e.stopPropagation();
             const eventId = sector.dataset.eventId;
             openEditForm(eventId);
+            if (window.switchSchedTab) window.switchSchedTab('form');
         });
     });
 }

@@ -194,6 +194,60 @@
         #sideDrawer.drawer-open { transform: translateX(0); }
         body.drawer-open { overflow: hidden; }
 
+        /* ─── 스케줄 휠 섹터 구분선 ────────────────────────── */
+        .schedule-sector { stroke: white; }
+        .dark .schedule-sector { stroke: #e5e7eb; }
+
+        /* ─── 모바일 캘린더 전체화면 ────────────────────────── */
+        @media (max-width: 639px) {
+            #calendarModal { padding: 0; }
+            #calendarModalContent {
+                border-radius: 0;
+                max-width: 100% !important;
+                max-height: 100dvh !important;
+                height: 100dvh;
+                position: relative;
+            }
+            #contentWrapper > div:first-child {
+                width: 100% !important;
+                margin: 0 !important;
+            }
+            #taskDetailPanel {
+                position: absolute !important;
+                top: 0 !important; left: 0 !important;
+                right: 0 !important; bottom: 0 !important;
+                width: auto !important;
+                height: auto !important;
+                border-left: none !important;
+                z-index: 5;
+                background: white;
+                padding-left: 0.5rem;
+                padding-right: 0.5rem;
+            }
+            .dark #taskDetailPanel { background: rgb(2 6 23); }
+        }
+
+        /* ─── 모바일 전체화면 모달 공통 ─────────────────────── */
+        @media (max-width: 639px) {
+            #scheduleModal,
+            #taskModal,
+            #archiveModal,
+            #taskDetailOverlay {
+                padding: 0;
+            }
+            #scheduleModal > div,
+            #taskModal > div,
+            #archiveModal > div,
+            #taskDetailOverlay > div {
+                border-radius: 0;
+                max-width: 100%;
+                width: 100%;
+                height: 100dvh;
+                max-height: 100dvh;
+                overflow-y: auto;
+            }
+        }
+
         /* ─── 모바일 칸반 탭 ──────────────────────────────────── */
         .col-wrap.tab-hidden { display: none; }
         .kanban-tab {
@@ -331,11 +385,6 @@
                     class="btn-ghost p-1.5 text-lg w-5 h-8 flex items-center justify-center">
                 ☀️
             </button>
-            <button onclick="signOut()"
-                    class="btn-ghost p-1.5 text-sm w-8 h-8 flex items-center justify-center"
-                    title="Sign out">
-                🚪
-            </button>
         </div>
     </div>
 </div>
@@ -434,6 +483,14 @@
                 </div>
             </div>
         </div>
+
+        <button onclick="signOut()"
+                class="w-full px-3 py-1.5 rounded-lg text-xs font-medium
+                       text-slate-400 dark:text-slate-500
+                       hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-500 dark:hover:text-red-400
+                       transition-all duration-200 flex items-center justify-center gap-2">
+            Sign Out
+        </button>
     </aside>
 
     <div class="flex-1 min-w-0">
@@ -450,7 +507,7 @@
             </button>
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4" id="kanbanBoard" data-active-tab="todo">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4" id="kanbanBoard" data-active-tab="inprogress">
 
             <div class="col-wrap" data-column="todo">
                 <div class="flex items-center gap-2 mb-4">
@@ -722,14 +779,20 @@
             </button>
         </div>
 
+        <!-- 모바일 탭 (sm 이상에서는 숨김) -->
+        <div class="flex sm:hidden border-b border-slate-200 dark:border-slate-700 mb-4 -mx-6 px-6">
+            <button id="schedTabWheel" class="kanban-tab tab-active flex-1 py-2 text-sm font-semibold">🕐 Wheel</button>
+            <button id="schedTabForm"  class="kanban-tab flex-1 py-2 text-sm font-semibold">📋 Events</button>
+        </div>
+
         <div class="flex gap-8 flex-col lg:flex-row">
             <!-- Left: Circular Wheel -->
-            <div class="flex-1 flex flex-col items-center gap-4">
+            <div id="schedWheelSection" class="flex-1 flex flex-col items-center gap-4">
                 <svg id="scheduleWheel" viewBox="0 0 400 400" class="w-full h-auto dark:text-slate-100" style="max-width: 500px;"></svg>
             </div>
 
             <!-- Right: Form & Events List -->
-            <div class="w-full lg:w-80">
+            <div id="schedFormSection" class="w-full lg:w-80">
                 <!-- Add/Edit Form -->
                 <div id="schedFormArea" class="mb-6 p-4 rounded-lg bg-slate-50 dark:bg-slate-700/30">
                     <p class="text-xs font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-3">Add Event</p>
@@ -905,8 +968,27 @@
     </div>
 </div>
 
+<!-- ═══════════════════════════════════════════════════════════
+     TASK DETAIL OVERLAY (아카이브 등에서 공통 사용)
+════════════════════════════════════════════════════════════ -->
+<div id="taskDetailOverlay"
+     style="display:none"
+     class="fixed inset-0 z-[60] flex items-center justify-center p-4
+            bg-black/50 dark:bg-black/70 backdrop-blur-sm">
+    <div class="card w-full max-w-sm p-5 modal-pop max-h-[90vh] overflow-y-auto">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-base font-bold">Task Details</h2>
+            <button onclick="document.getElementById('taskDetailOverlay').style.display='none'"
+                    class="btn-ghost w-8 h-8 flex items-center justify-center text-xl font-light">×</button>
+        </div>
+        <div id="taskDetailOverlayContent" class="space-y-3 text-sm"></div>
+        <div id="taskDetailOverlayButtons" class="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700 flex gap-2"></div>
+    </div>
+</div>
+
 <!-- Floating Action Button -->
 <button id="openAddTaskModal"
+        style="display:none"
         class="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full
                btn-primary flex items-center justify-center
                shadow-lg text-3xl font-light leading-none">
