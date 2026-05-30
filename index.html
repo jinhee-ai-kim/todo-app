@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Study Assistant</title>
+    <title>Todo List</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📝</text></svg>">
 
     <!-- Tailwind CDN -->
@@ -72,10 +72,6 @@
         .task-card.sortable-ghost {
             @apply opacity-30 bg-blue-50 dark:bg-blue-900/20;
         }
-
-        .pri-high   { @apply border-l-4 border-l-red-500; }
-        .pri-medium { @apply border-l-4 border-l-amber-400; }
-        .pri-low    { @apply border-l-4 border-l-emerald-500; }
 
         .col-wrap {
             @apply bg-slate-100/70 dark:bg-slate-900/40
@@ -415,7 +411,7 @@
         <div class="card p-4">
             <div class="flex items-center justify-between gap-2 mb-3">
                 <h3 class="text-xs font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">
-                    Subjects
+                    Categories
                 </h3>
                 <button id="toggleCategoryFormBtn"
                         class="py-2 px-2.5 text-base font-semibold
@@ -429,19 +425,23 @@
                 </button>
             </div>
             <div class="space-y-0.5" id="categoryList"></div>
-            <div id="addCategoryForm" class="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700/50 flex gap-2" style="display: none;">
-                <input type="text" id="newCategoryInput"
-                       placeholder="New subject…"
-                       class="input-field text-xs py-1.5 flex-1">
-                <button id="addCategoryBtn"
-                        class="py-2 px-2.5 text-base font-semibold
-                                text-slate-600 dark:text-slate-300
-                                bg-white/10 dark:bg-slate-600/20
-                                hover:bg-white/20 dark:hover:bg-slate-600/40
-                                border border-white/20 dark:border-slate-500/30
-                                rounded-xl backdrop-blur-sm transition-all duration-200">
-                    +
-                </button>
+            <div id="addCategoryForm" class="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700/50 space-y-2" style="display: none;">
+                <div class="flex gap-2">
+                    <input type="text" id="newCategoryInput"
+                           placeholder="New Categories…"
+                           class="input-field text-xs py-1.5 flex-1">
+                    <button id="addCategoryBtn"
+                            class="py-2 px-2.5 text-base font-semibold
+                                    text-slate-600 dark:text-slate-300
+                                    bg-white/10 dark:bg-slate-600/20
+                                    hover:bg-white/20 dark:hover:bg-slate-600/40
+                                    border border-white/20 dark:border-slate-500/30
+                                    rounded-xl backdrop-blur-sm transition-all duration-200">
+                        +
+                    </button>
+                </div>
+                <div id="newCategoryColorSwatches" class="flex gap-1.5 flex-wrap px-1 items-center"></div>
+                <input type="hidden" id="newCategoryColor" value="#0ea5e9">
             </div>
         </div>
 
@@ -598,7 +598,7 @@
             <div class="grid grid-cols-2 gap-3">
                 <div>
                     <label class="block text-xs font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1.5">
-                        Subject
+                        Categories
                     </label>
                     <select id="taskCategory" class="input-field">
                         <option value="">None</option>
@@ -673,7 +673,7 @@
     <div class="card w-full max-w-sm p-6 modal-pop">
 
         <div class="flex justify-between items-center mb-4">
-            <h2 class="text-lg font-bold" id="categoryModalTitle">Manage Subject</h2>
+            <h2 class="text-lg font-bold" id="categoryModalTitle">Manage Categories</h2>
             <button id="closeCategoryModal"
                     class="btn-ghost w-8 h-8 flex items-center justify-center text-xl font-light leading-none">
                 ×

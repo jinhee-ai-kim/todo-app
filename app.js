@@ -7,6 +7,18 @@ const GOAL_COLORS = [
     'goal-purple'
 ];
 
+// Category color palette
+const CATEGORY_COLORS = [
+    { hex: '#0ea5e9', name: 'Sky' },
+    { hex: '#8b5cf6', name: 'Violet' },
+    { hex: '#ec4899', name: 'Pink' },
+    { hex: '#ef4444', name: 'Rose' },
+    { hex: '#f97316', name: 'Orange' },
+    { hex: '#eab308', name: 'Yellow' },
+    { hex: '#10b981', name: 'Emerald' },
+    { hex: '#06b6d4', name: 'Cyan' },
+];
+
 // ─── STATE ───────────────────────────────────────────────────────────────────
 const STATE = {
     tasks:        [],
@@ -114,7 +126,8 @@ async function dbSyncCategories() {
         user_id:    USER_ID,
         sort_order: c.order ?? 0,
         is_visible: c.visible !== false,
-        is_deleted: c.deleted === true
+        is_deleted: c.deleted === true,
+        color:      c.color || '#0ea5e9'
     }));
     const { data, error } = await db.from('categories').upsert(rows, { onConflict: 'id' });
     if (error) {
@@ -176,7 +189,8 @@ async function dbLoad() {
         name:    r.name,
         order:   r.sort_order ?? 0,
         visible: r.is_visible !== false,
-        deleted: r.is_deleted === true
+        deleted: r.is_deleted === true,
+        color:   r.color || '#0ea5e9'
     }));
     STATE.goals      = (goalsRes.data || []).map(r => ({ id: r.id, text: r.text, color: r.color, order: r.sort_order ?? 0 }));
     STATE.schedule   = (schedRes.data || []).map(r => ({
@@ -308,17 +322,17 @@ function goalsReorder(newOrder) {
     dbSyncGoals();
 }
 
-// ─── CATEGORY/SUBJECT CRUD ────────────────────────────────────────────────────
+// ─── CATEGORY CRUD ────────────────────────────────────────────────────
 function createCategoryId() {
     return 'cat_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9);
 }
 
-function categoryCreate(name) {
+function categoryCreate(name, color = '#0ea5e9') {
     const trimmed = name.trim();
     if (!trimmed || STATE.categories.some(c => c.name === trimmed && !c.deleted)) return false;
     const activeCats = STATE.categories.filter(c => !c.deleted);
     const maxOrder = activeCats.length > 0 ? Math.max(...activeCats.map(c => c.order ?? 0)) : -1;
-    STATE.categories.push({ id: createCategoryId(), name: trimmed, order: maxOrder + 1, visible: true, deleted: false });
+    STATE.categories.push({ id: createCategoryId(), name: trimmed, color, order: maxOrder + 1, visible: true, deleted: false });
     dbSyncCategories();
     return true;
 }
@@ -428,6 +442,18 @@ function getDayCount(dateStr) {
 }
 
 // ─── RENDER ───────────────────────────────────────────────────────────────────
+function getCategoryColor(categoryId) {
+    const cat = STATE.categories.find(c => c.id === categoryId);
+    return cat?.color || '#0ea5e9';
+}
+
+function buildCategoryBadge(task) {
+    const name = getCategoryName(task);
+    if (!name) return '';
+    const color = getCategoryColor(task.categoryId);
+    return `<span class="px-2 py-0.5 rounded-full text-xs font-medium flex items-center gap-1.5 flex-shrink-0" style="color:${color}; background-color:${color}26;"><span class="w-1.5 h-1.5 rounded-full flex-shrink-0" style="background-color:${color}"></span>${esc(name)}</span>`;
+}
+
 function buildTaskCard(task) {
     // Calculate days remaining for color coding
     let dateCls = 'text-slate-400 dark:text-slate-500';
@@ -458,8 +484,13 @@ function buildTaskCard(task) {
         task.priority === 'medium' ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400' :
                                      'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400';
 
+    const borderColor = task.categoryId
+        ? getCategoryColor(task.categoryId)
+        : '#94a3b8';
+
     return `
-<div class="task-card pri-${esc(task.priority)} ${isDone ? 'opacity-50' : ''} fade-up"
+<div class="task-card ${isDone ? 'opacity-50' : ''} fade-up"
+     style="border-left: 4px solid ${borderColor}90;"
      data-task-id="${esc(task.id)}"
      onclick="handleCardClick('${esc(task.id)}', event)">
 
@@ -475,12 +506,7 @@ function buildTaskCard(task) {
                 ? `<div class="text-xs text-slate-400 dark:text-slate-500 mt-1 leading-relaxed line-clamp-2">${esc(task.description)}</div>`
                 : ''}
             <div class="flex flex-wrap gap-1.5 mt-2 items-center">
-                ${getCategoryName(task)
-                    ? `<span class="px-2 py-0.5 rounded-full text-xs font-medium
-                                   bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400">
-                           ${esc(getCategoryName(task))}
-                       </span>`
-                    : ''}
+                ${buildCategoryBadge(task)}
                 <span class="px-2 py-0.5 rounded-full text-xs font-semibold ${priCls}">${esc(task.priority)}</span>
                 ${(task.status === 'done' && task.completedDate)
                     ? `<span class="text-xs text-emerald-600 dark:text-emerald-400 font-medium">✅ ${formatDate(task.completedDate)}</span>`
@@ -566,11 +592,25 @@ function renderCategoryFilter() {
 
     const renderItem = ({ value, label, catObj }, isHidden = false) => {
         const active = STATE.filter === value;
-        const btnClass = active
-            ? 'bg-blue-500 text-white shadow-sm shadow-blue-500/20'
-            : isHidden
-                ? 'text-slate-400 dark:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700/60'
-                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700/60';
+        const catColor = catObj?.color || '#0ea5e9';
+
+        let btnClass, btnStyle = '';
+        if (active) {
+            if (catObj) {
+                btnClass = 'text-white shadow-sm';
+                btnStyle = `style="background-color:${catColor};"`;
+            } else {
+                btnClass = 'bg-blue-500 text-white shadow-sm shadow-blue-500/20';
+            }
+        } else if (isHidden) {
+            btnClass = 'text-slate-400 dark:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700/60';
+        } else {
+            btnClass = 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700/60';
+        }
+
+        const dotHtml = catObj
+            ? `<span class="w-2 h-2 rounded-full flex-shrink-0" style="background-color:${catColor}"></span>`
+            : '';
 
         const eyeIcon = catObj
             ? `<button class="px-1.5 py-1.5 text-slate-300 dark:text-slate-600 hover:text-blue-500 dark:hover:text-blue-400 text-sm transition-colors"
@@ -580,9 +620,10 @@ function renderCategoryFilter() {
 
         return `<div class="flex items-center gap-1 category-item${isHidden ? ' opacity-60' : ''}" ${catObj ? `data-category="${esc(label)}"` : ''}>
             <button
-                class="flex-1 text-left px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 category-btn ${btnClass}"
+                class="flex-1 text-left px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 category-btn ${btnClass} flex items-center gap-2"
                 data-filter="${esc(value)}"
-            >${esc(label)}</button>
+                ${btnStyle}
+            >${dotHtml}${esc(label)}</button>
             ${catObj ? eyeIcon : ''}
             ${catObj ? `<button class="px-2 py-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 text-sm"
                     onclick="showCategoryMenu('${esc(value)}')"
@@ -937,12 +978,13 @@ function renderArchiveList() {
 
     list.innerHTML = archived.map(task => `
         <div class="pl-3 pr-3 pt-2 pb-2 rounded-lg bg-slate-100 dark:bg-slate-700/40 border border-slate-200 dark:border-slate-600 cursor-pointer"
+             style="border-left: 4px solid ${task.categoryId ? getCategoryColor(task.categoryId) + '26' : '#94a3b826'};"
              onclick="if(!event.target.closest('button')) showTaskDetailOverlay('${esc(task.id)}')"
              title="Click to view details">
             <div class="flex items-center gap-3 justify-between">
                 <div class="flex items-center gap-2 min-w-0 flex-wrap">
                     <div class="text-sm font-medium text-slate-800 dark:text-slate-100 whitespace-nowrap">${esc(task.title)}</div>
-                    ${getCategoryName(task) ? `<span class="px-1.5 py-0.5 rounded text-xs bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 whitespace-nowrap">${esc(getCategoryName(task))}</span>` : ''}
+                    ${buildCategoryBadge(task)}
                     <span class="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap"> ${formatDate(task.completedDate)}</span>
                 </div>
             </div>
@@ -980,7 +1022,7 @@ function showTaskDetailOverlay(taskId) {
             ${getCategoryName(task) ? `
             <div>
                 <p class="text-xs text-slate-400 dark:text-slate-500 uppercase tracking-wide">Category</p>
-                <span class="mt-1 px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 inline-block">${esc(getCategoryName(task))}</span>
+                <span class="mt-1 inline-block">${buildCategoryBadge(task)}</span>
             </div>` : ''}
         </div>
         ${task.priority ? `
@@ -1171,7 +1213,7 @@ function showTaskDetail(taskId, editMode = false) {
                     ${getCategoryName(task) ? `
                     <div>
                         <p class="text-xs text-slate-400 dark:text-slate-500 uppercase tracking-wide">Category</p>
-                        <p class="text-sm font-medium mt-1 px-2 py-1 rounded bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 inline-block">${esc(getCategoryName(task))}</p>
+                        <span class="mt-1 inline-block">${buildCategoryBadge(task)}</span>
                     </div>
                     ` : ''}
                 </div>
@@ -1366,13 +1408,43 @@ function handleDeleteGoal(id) {
     renderGoals();
 }
 
+function selectMenuColor(btn, hex) {
+    document.querySelectorAll('#categoryColorPicker .color-swatch').forEach(b => {
+        b.classList.remove('ring-2', 'ring-offset-2', 'ring-slate-400', 'scale-110');
+    });
+    btn.classList.add('ring-2', 'ring-offset-2', 'ring-slate-400', 'scale-110');
+    document.getElementById('colorInput').value = hex;
+}
+
+function selectNewCatColor(btn, hex) {
+    document.querySelectorAll('#newCategoryColorSwatches .color-swatch').forEach(b => {
+        b.classList.remove('ring-2', 'ring-offset-2', 'ring-slate-400', 'scale-110');
+    });
+    btn.classList.add('ring-2', 'ring-offset-2', 'ring-slate-400', 'scale-110');
+    document.getElementById('newCategoryColor').value = hex;
+}
+
 function showCategoryMenu(categoryName) {
     const el = document.getElementById('categoryModalContent');
+    const cat = STATE.categories.find(c => c.name === categoryName && !c.deleted);
+    const currentColor = cat?.color || '#0ea5e9';
+
+    const colorSwatches = CATEGORY_COLORS.map(c => `<button type="button"
+        class="w-7 h-7 rounded-full transition-all duration-150 color-swatch flex-shrink-0 ${c.hex === currentColor ? 'ring-2 ring-offset-2 ring-slate-400 scale-110' : 'hover:scale-110'}"
+        style="background-color:${c.hex}"
+        data-color="${c.hex}"
+        onclick="selectMenuColor(this, '${c.hex}')"
+        title="${c.name}"></button>`).join('');
+
     el.innerHTML = `
         <div class="space-y-3">
             <input type="text" id="renameInput" value="${esc(categoryName)}" class="input-field" placeholder="New name">
+            <div id="categoryColorPicker" class="flex items-center gap-2 flex-wrap py-1">
+                ${colorSwatches}
+                <input type="hidden" id="colorInput" value="${currentColor}">
+            </div>
             <div class="flex gap-2">
-                <button onclick="confirmRenameCategory('${esc(categoryName)}')" class="btn-primary flex-1 text-sm py-2">Rename</button>
+                <button onclick="confirmRenameCategory('${esc(categoryName)}')" class="btn-primary flex-1 text-sm py-2">Save</button>
                 <button onclick="confirmDeleteCategory('${esc(categoryName)}')" class="flex-1 bg-red-500/10 text-red-600 hover:bg-red-500/20 rounded-lg py-2 text-sm font-medium transition-colors">Delete</button>
             </div>
         </div>
@@ -1383,20 +1455,29 @@ function showCategoryMenu(categoryName) {
 
 function confirmRenameCategory(oldName) {
     const newName = document.getElementById('renameInput').value.trim();
+    const newColor = document.getElementById('colorInput').value;
     if (!newName) {
         alert('Please enter a name');
         return;
     }
-    if (categoryRename(oldName, newName)) {
-        modalHide('categoryModal');
-        renderAll();
+    const cat = STATE.categories.find(c => c.name === oldName && !c.deleted);
+    if (cat && newColor) cat.color = newColor;
+
+    if (newName !== oldName) {
+        if (!categoryRename(oldName, newName)) {
+            alert('Category already exists or is invalid');
+            return;
+        }
     } else {
-        alert('Subject already exists or is invalid');
+        dbSyncCategories();
     }
+
+    modalHide('categoryModal');
+    renderAll();
 }
 
 function confirmDeleteCategory(name) {
-    if (confirm(`Delete "${name}"? Tasks with this subject will lose their subject assignment.`)) {
+    if (confirm(`Delete "${name}"? Tasks with this category will lose their category assignment.`)) {
         categoryDelete(name);
         modalHide('categoryModal');
         renderAll();
@@ -1458,11 +1539,20 @@ function toggleCategoryForm() {
     const input = document.getElementById('newCategoryInput');
     const toggleBtn = document.getElementById('toggleCategoryFormBtn');
     if (form.style.display === 'none') {
-        form.style.display = 'flex';
+        form.style.display = 'block';
         input.focus();
         input.value = '';
         toggleBtn.textContent = '✕';
         toggleBtn.style.fontSize = '0.875rem';
+        // render color swatches
+        const defaultColor = '#0ea5e9';
+        document.getElementById('newCategoryColor').value = defaultColor;
+        document.getElementById('newCategoryColorSwatches').innerHTML = CATEGORY_COLORS.map(c => `<button type="button"
+            class="w-7 h-7 rounded-full transition-all duration-150 color-swatch flex-shrink-0 ${c.hex === defaultColor ? 'ring-2 ring-offset-2 ring-slate-400 scale-110' : 'hover:scale-110'}"
+            style="background-color:${c.hex}"
+            data-color="${c.hex}"
+            onclick="selectNewCatColor(this, '${c.hex}')"
+            title="${c.name}"></button>`).join('');
     } else {
         form.style.display = 'none';
         toggleBtn.textContent = '+';
@@ -1603,7 +1693,7 @@ function wireEvents() {
                 return `
                     <div class="p-2 rounded-lg bg-slate-100 dark:bg-slate-700/40 text-sm flex items-center gap-2 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-600/40 transition-colors" onclick="showTaskDetail('${esc(t.id)}')">
                         <div class="font-medium text-slate-800 dark:text-slate-100 truncate flex-1">${esc(t.title)}</div>
-                        ${getCategoryName(t) ? `<span class="px-1.5 py-0.5 rounded text-xs bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 flex-shrink-0">${esc(getCategoryName(t))}</span>` : ''}
+                        ${buildCategoryBadge(t)}
                         <span class="${status.color} text-xs font-medium ml-auto flex-shrink-0">${status.emoji} ${status.text}</span>
                     </div>
                 `;
@@ -1719,10 +1809,12 @@ function wireEvents() {
     // Add Category
     document.getElementById('addCategoryBtn').addEventListener('click', function() {
         const input = document.getElementById('newCategoryInput');
+        const color = document.getElementById('newCategoryColor').value || '#0ea5e9';
         const val   = input.value.trim();
-        if (val && categoryCreate(val)) {
+        if (val && categoryCreate(val, color)) {
             input.value = '';
             renderAll();
+            toggleCategoryForm();
         }
     });
 
